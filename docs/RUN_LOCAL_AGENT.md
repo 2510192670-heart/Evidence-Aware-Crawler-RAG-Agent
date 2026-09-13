@@ -108,7 +108,7 @@ M4.1 建立了后续 M4/M6 共用的本机测试与评测基础，**未修改生
 ```
 
 - S1 `GET` 页码分页变体：路由名、分页参数名、每页参数名、字段名与 total/结束标记名都与学习站不同。
-- S2 `POST` JSON 页码分页 fixture：端点与页面已就绪，供 M4.3 使用；当前 pipeline 仍明确拒绝 POST。
+- S2 `POST` JSON 页码分页 fixture：端点与页面已就绪。M4.3.1 起浏览器观察会记录同源 JSON POST 证据；M4.3.2 起执行器支持页码位于 JSON body 顶层成员的分页（计划需声明 `pagination_location="json_body"`，GET 与 `json_body` 不得混用）。
 - S3 嵌套响应：`/data/records` + `/data/totalCount` + `/data/hasMore` 一类结构，覆盖短末页与“只有 total、无结束标记”两种。
 - S4 同 origin 干扰簇：一个真实分页接口 + 一个相似但不可分页的接口 + 一个 metadata/status 接口。
 - S5 确定性漂移：重复唯一键、跨页 total 变化、字段类型变化、空页但结束标记为 true；全部由固定数据集产生，不使用随机数。
@@ -116,11 +116,11 @@ M4.1 建立了后续 M4/M6 共用的本机测试与评测基础，**未修改生
 评测清单 `benchmarks/tasks.json` 共 20 个任务槽位（S1～S5 各 4 个，每类 2 个 `dev` + 2 个 `held_out`）：
 
 - `solution` 是标准答案（方法、路由、分页参数、指针、唯一键），`expected` 声明预期条数/页数/完整性，或预期失败码。
-- S2 任务标记 `"supported": false` 与 `"unsupported_until": "M4.3"`，不假装当前可通过。
+- S2 任务仍标记 `"supported": false` 与 `"unsupported_until": "M4.3"`；执行器已能完成这些任务，但清单的能力声明与哈希翻转刻意留到最后一步（M4.3.3，与 cURL 导入、collector 导出一起）。
 - 内容哈希记录在 `benchmarks/tasks.sha256`；测试会重新计算 canonical SHA-256，任何任务改动都会被发现。
 - 留出隔离由测试强制：dev / held_out 的路由名、字段名、分页键三者互不重叠，且留出任务的名称不会出现在 RAG 案例语料中。
 
-尚未完成：POST 生产支持、bounded repair，以及规则 / 无 RAG / RAG 三组对照的最终运行与结论。M4.1 只提供冻结靶场与标准答案，对照结论属于 M6；错误分类基线见下一节。
+尚未完成：POST 的 cURL 导入与 collector 导出、清单 capability 翻转、bounded repair，以及规则 / 无 RAG / RAG 三组对照的最终运行与结论。M4.1 只提供冻结靶场与标准答案，对照结论属于 M6；错误分类基线见下一节。
 
 ## 7. 错误分类（M4.2 第一批）
 
@@ -129,10 +129,11 @@ M4.1 建立了后续 M4/M6 共用的本机测试与评测基础，**未修改生
 - `PipelineError` 继承 `ValueError`，且 `str(error)` 严格等于错误码，因此既有异常测试与消息比较不受影响。
 - 类别：`SECURITY`、`OBSERVATION`、`PLAN_SEMANTIC`、`DATA_INTEGRITY`、`TRANSPORT`、`MODEL_OUTPUT`、`BUDGET`、`UNCLASSIFIED`。
 - 第一批只迁移 5 个码：`pointer_not_found`、`duplicate_id`、`total_changed`、`field_type_changed`、`empty_page_with_next`。其余 raise 点保持裸 `ValueError`，被安全地归为 `UNCLASSIFIED`，不会误开修复入口。
+- M4.3.2 新增两个 PLAN_SEMANTIC 码 `page_location_mismatch` 与 `invalid_page_field_type`（新码，不是迁移）。`unobserved_page_parameter` 仍是裸 `ValueError`，分类与迁移批次保持不变。
 - `details` 只是结构上下文（页号、字段名、唯一键、指针），有 key 白名单、仅接受标量、超长截断，绝不包含响应值或凭证。
 - 失败报告只新增字段，不改变既有字段：`error`（稳定错误码）、`error_type`、`error_category`、`error_repairable`、`error_retryable`。未迁移路径的 `error` 仍是异常类型名。
 - 导出的 `collector.py` 仍完全不依赖本项目模块，`export.py` 也不依赖 `errors.py`。
 
 ## 8. 下一阶段
 
-任务状态/API、持久化、案例 RAG、Vue 控制台、cURL 导入、确定性 collector 导出、M4.1 多结构靶场与冻结评测清单、M4.2 错误分类基线均已完成。下一步是 M4.3 POST JSON 页码分页，随后是 M4.4 受限自动修正（届时会按类别扩大错误码迁移范围）。公网目标策略另行设计，现有学习站继续作为回归基线。
+任务状态/API、持久化、案例 RAG、Vue 控制台、cURL 导入、确定性 collector 导出、M4.1 多结构靶场与冻结评测清单、M4.2 错误分类基线、M4.3.1 POST 证据层、M4.3.2 POST 计划与执行均已完成。下一步是 M4.3.3（POST cURL 导入、collector 导出与清单翻转），随后是 M4.4 受限自动修正（届时会按类别扩大错误码迁移范围）。公网目标策略另行设计，现有学习站继续作为回归基线。

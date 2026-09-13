@@ -70,6 +70,6 @@ frontend/dist 是生成文件，不纳入源码。若后端启动时尚未构建
 
 已按概念的布局和视觉方向核对实现；上述差异为真实功能和数据所需，没有把生成图片作为界面。没有宣称像素级一致。
 
-下一阶段：增加多种本地测试接口与固定评测集，比较规则、模型、模型加 RAG 的正确率、完整率、token 与耗时。当前产品仍只支持本机 GET 页码分页，不是通用网站爬取工具。
+下一阶段：增加多种本地测试接口与固定评测集，比较规则、模型、模型加 RAG 的正确率、完整率、token 与耗时。计划提示词仍面向本机 GET 页码分页；执行器自 M4.3.2 起也支持页码位于同源 POST JSON body 的分页，但 cURL 导入与 collector 导出尚未跟进，产品仍不是通用网站爬取工具。
 
 实现依据：[Vite 静态构建](https://vite.dev/guide/static-deploy.html)、[Vue Router hash 模式](https://router.vuejs.org/guide/essentials/history-mode.html)。

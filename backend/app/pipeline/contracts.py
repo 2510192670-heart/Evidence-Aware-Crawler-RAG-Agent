@@ -1,7 +1,8 @@
 import re
+from typing import Literal
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .errors import PipelineError
 
@@ -44,9 +45,35 @@ class Observation(BaseModel):
     model_config = ConfigDict(extra='forbid')
     request_id: str
     url: str
+    # method 是证据属性而非计划输入：POST 只能来自被真实观察到的请求。
+    method: Literal['GET', 'POST'] = 'GET'
     query: dict[str, str]
+    # request_body 是请求 JSON body；body 保持原义，指响应体。
+    request_body: dict | None = None
     body: dict | list
     status: int = 200
+
+    @model_validator(mode='after')
+    def check_method_body(self):
+        """POST 必须有非空 JSON 对象请求体；GET 不得携带请求体。"""
+        if self.method == 'POST':
+            if not isinstance(self.request_body, dict) or not self.request_body:
+                raise ValueError('post_requires_json_object_body')
+        elif self.request_body is not None:
+            raise ValueError('get_must_not_carry_request_body')
+        return self
+
+
+def has_sensitive_keys(value, depth=0) -> bool:
+    """递归检查键名是否敏感；深度受限，避免不可信结构被无限展开。"""
+    if depth > 6:
+        return False
+    if isinstance(value, dict):
+        return any(SENSITIVE.search(key) or has_sensitive_keys(child, depth + 1)
+                   for key, child in value.items())
+    if isinstance(value, list):
+        return any(has_sensitive_keys(child, depth + 1) for child in value)
+    return False
 
 
 class ExtractionPlan(BaseModel):
@@ -55,7 +82,10 @@ class ExtractionPlan(BaseModel):
     items_pointer: str = Field(description='JSON Pointer to the list, e.g. /items.')
     fields: dict[str, str] = Field(min_length=1, max_length=10, description='Requested output name to JSON Pointer relative to each item.')
     unique_key: str = Field(description='A key in fields representing a unique identifier.')
-    page_parameter: str = Field(description='An observed query parameter holding page number, starting at 1.')
+    pagination_location: Literal['query', 'json_body'] = Field(
+        default='query',
+        description='Where the observed page number lives: "query" for a GET request, "json_body" for a POST JSON body.')
+    page_parameter: str = Field(description='An observed query parameter (pagination_location=query) or a top-level request body member (pagination_location=json_body) holding the page number, starting at 1.')
     has_next_pointer: str | None = Field(description='JSON Pointer to boolean next-page flag, or null if absent.')
     total_pointer: str | None = Field(description='JSON Pointer to total item count, or null if absent.')
 
@@ -67,6 +97,31 @@ class ExtractionPlan(BaseModel):
         if value and SENSITIVE.search(value):
             raise ValueError('sensitive_pointer')
         return value
+
+
+def validate_pagination(plan: ExtractionPlan, record: Observation):
+    """共享分页校验：页码位置必须与方法一致，且页码成员必须是被观察到的可用整数。
+
+    执行时只允许修改 `page_parameter` 这一个成员，所以这里的判定就是安全边界：
+    计划声明的分页位置必须来自证据，不能把观察到的 GET 变成 POST，也不能凭空
+    指定一个 body 成员。
+    """
+    page = plan.page_parameter
+    if plan.pagination_location == 'query':
+        if record.method != 'GET':
+            raise PipelineError('page_location_mismatch', details={'parameter': page})
+        observed = record.query.get(page)
+        if observed is None or not observed.isdecimal():
+            # 沿用既有码的裸 ValueError 行为（该码尚未迁移到 PipelineError）。
+            raise ValueError('unobserved_page_parameter')
+        return
+    if record.method != 'POST':
+        raise PipelineError('page_location_mismatch', details={'parameter': page})
+    body = record.request_body if isinstance(record.request_body, dict) else {}
+    if page not in body:
+        raise ValueError('unobserved_page_parameter')
+    if type(body[page]) is not int:
+        raise PipelineError('invalid_page_field_type', details={'parameter': page})
 
 
 def shape(value, depth=0):
@@ -88,10 +143,36 @@ def shape(value, depth=0):
     return '<string>'
 
 
+def request_shape(value):
+    """请求体摘要：小页码可见以便定位页码成员，其余只保留类型占位。
+
+    与 query 的处理保持一致——只有短小十进制值（页码/页大小）才原样出现，
+    其余字符串、文本值一律降级为类型占位。
+    """
+    if not isinstance(value, dict):
+        return shape(value)
+    visible = {}
+    for key, item in list(value.items())[:30]:
+        if SENSITIVE.search(key):
+            continue
+        if type(item) is int and 0 < item <= 999:
+            visible[key] = item
+        elif isinstance(item, str) and item.isdecimal() and len(item) <= 3:
+            visible[key] = item
+        else:
+            visible[key] = shape(item)
+    return visible
+
+
 def cloud_summary(record: Observation):
-    return {
-        'request_id': record.request_id, 'method': 'GET', 'status': record.status,
+    summary = {
+        'request_id': record.request_id, 'method': record.method, 'status': record.status,
         'query': {k: (v if v.isdecimal() and len(v) <= 3 else '<value>')
                   for k, v in record.query.items() if not SENSITIVE.search(k)},
         'response_shape': shape(record.body),
     }
+    if record.method == 'POST':
+        # 页码成员必须可识别，否则模型无法判断页码位于 JSON body 中。
+        summary['request_body_shape'] = request_shape(record.request_body)
+    return summary
+

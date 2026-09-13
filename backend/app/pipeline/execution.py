@@ -3,7 +3,8 @@ import math
 
 import httpx
 
-from .contracts import ExtractionPlan, Observation, SENSITIVE, local_origin, pointer
+from .contracts import (ExtractionPlan, Observation, SENSITIVE, local_origin, pointer,
+                        validate_pagination)
 from .errors import PipelineError
 
 
@@ -17,8 +18,7 @@ async def execute_plan(client: httpx.AsyncClient, plan: ExtractionPlan,
     local_origin(record.url)
     if any(SENSITIVE.search(k) for k in record.query):
         raise ValueError('sensitive_request_not_supported')
-    if plan.page_parameter not in record.query or not record.query[plan.page_parameter].isdecimal():
-        raise ValueError('unobserved_page_parameter')
+    validate_pagination(plan, record)
     if plan.unique_key not in plan.fields:
         raise ValueError('unique_key_not_in_fields')
     for name, path in plan.fields.items():
@@ -39,9 +39,17 @@ async def execute_plan(client: httpx.AsyncClient, plan: ExtractionPlan,
     seen = set()
     expected_total = None
     for page in range(1, max_pages + 1):
-        query = dict(record.query)
-        query[plan.page_parameter] = str(page)
-        async with client.stream('GET', record.url, params=query, timeout=10, follow_redirects=False) as response:
+        # 每页只修改 page_parameter 一个成员；其余成员与观察到的 query 原样回放。
+        if plan.pagination_location == 'json_body':
+            request_body = dict(record.request_body)
+            request_body[plan.page_parameter] = page
+            stream = client.stream('POST', record.url, params=record.query, json=request_body,
+                                   timeout=10, follow_redirects=False)
+        else:
+            query = dict(record.query)
+            query[plan.page_parameter] = str(page)
+            stream = client.stream('GET', record.url, params=query, timeout=10, follow_redirects=False)
+        async with stream as response:
             response.raise_for_status()
             raw = bytearray()
             async for chunk in response.aiter_bytes():

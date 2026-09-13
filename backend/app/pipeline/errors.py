@@ -85,6 +85,8 @@ _GROUPS = (
     _group(Category.PLAN_SEMANTIC, (
         ('unknown_request_id', 'Plan references an unobserved request id.', ('request_id',)),
         ('unobserved_page_parameter', 'Page parameter was not observed.', ('parameter',)),
+        ('page_location_mismatch', 'Pagination location does not match the observed request method.', ('parameter',)),
+        ('invalid_page_field_type', 'Observed page field is not a JSON integer.', ('parameter',)),
         ('unique_key_not_in_fields', 'Unique key is not one of the requested fields.', ('unique_key',)),
         ('invalid_json_pointer', 'Pointer is not a valid JSON Pointer.', ('pointer',)),
         ('invalid_array_index', 'Pointer uses an invalid array index.', ('pointer',)),

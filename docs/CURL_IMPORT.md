@@ -2,6 +2,10 @@
 
 ## 实际闭环复核
 
+最新进展：已将网关超时拆分为 connect_timeout、read_timeout、write_timeout、pool_timeout，外层总体超时仍为 timeout。98 项测试通过。重启服务后，任务 1e260259-437a-473d-b38b-1df722ed68e3 与 afa3c703-0466-4569-8dbd-d61b2995dd2a 明确返回 connect_timeout；这不是模型生成或 JSON 解析失败。独立模型连通检查曾成功（113 输入、5 输出 tokens），无凭证连接测试也出现过间歇性超时；尚不足以锁定网络根因，未增加自动重试或更改超时预算。
+
+新增可复现验收命令：`.venv/Scripts/python.exe frontend/qa_console.py --live --curl`。该命令会创建一次真实云任务；以 POST 返回的新任务 ID 进行跟踪，失败立即退出，成功后实际下载 result.json 与 report.json，逐条核对商品、验证两文件 SHA256、核对 source=curl_import，并验证刷新后仍选中新任务。未传 --live 的模拟测试不调用云模型。
+
 2026-09-13：已通过真实 Playwright 浏览器完成 cURL 输入、解析预览、创建任务，服务端成功读取本机接口样本，报告 source=curl_import。两次任务 689e6965-0daf-46b5-aff9-b8131eda9913、f69385c2-a54f-4e7f-af18-3ff01f07da27 均在模型请求阶段约 10 秒超时，未生成成功采集结果，故结果下载闭环仍未通过。用量返回 null，不能视作免费或零消耗。
 
 独立 Python HTTPX 无凭证连接模型根地址返回 401，说明该进程当时可连接，但不足以证明运行中 API 的模型请求正常。尝试重启 API 并明确模型地址和超时配置的命令遭自动审批拒绝（blocked by policy，无具体原因），未执行；超时根因未确认。

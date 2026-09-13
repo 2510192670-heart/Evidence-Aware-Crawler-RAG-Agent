@@ -108,6 +108,14 @@ class CloudGateway:
                             if len(raw) + len(chunk) > 256 * 1024:
                                 raise GatewayError('response_too_large')
                             raw.extend(chunk)
+        except httpx.ConnectTimeout:
+            raise GatewayError('connect_timeout') from None
+        except httpx.ReadTimeout:
+            raise GatewayError('read_timeout') from None
+        except httpx.WriteTimeout:
+            raise GatewayError('write_timeout') from None
+        except httpx.PoolTimeout:
+            raise GatewayError('pool_timeout') from None
         except (TimeoutError, httpx.TimeoutException):
             raise GatewayError('timeout') from None
         except httpx.HTTPError:

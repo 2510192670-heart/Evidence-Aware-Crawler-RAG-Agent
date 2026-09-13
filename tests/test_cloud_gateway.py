@@ -14,6 +14,20 @@ class Answer(BaseModel):
     ok: bool
 
 
+@pytest.mark.parametrize('error,code', [(httpx.ConnectTimeout, 'connect_timeout'),
+    (httpx.ReadTimeout, 'read_timeout'), (httpx.WriteTimeout, 'write_timeout'),
+    (httpx.PoolTimeout, 'pool_timeout')])
+def test_timeout_phase_is_reported_without_exception_details(error, code):
+    def handler(request):
+        raise error('private-token-in-error')
+    gateway = CloudGateway(config(), transport=httpx.MockTransport(handler))
+    with pytest.raises(GatewayError) as caught:
+        run(gateway)
+    assert caught.value.code == code
+    assert 'private-token' not in str(caught.value)
+    assert gateway.calls == 1
+
+
 def config(**kwargs):
     return CloudConfig('https://model.example/v1', 'test-secret', 'example-model', **kwargs)
 

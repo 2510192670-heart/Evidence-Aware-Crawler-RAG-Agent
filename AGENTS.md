@@ -603,11 +603,35 @@ Implemented:
 Repair boundary: `pointer_not_found` is automatically applied; `page_location_mismatch`
 is proposal-only; SECURITY, DATA_INTEGRITY, TRANSPORT and UNCLASSIFIED failures are rejected.
 
+## M5.0
+
+Retrieval contract lock
+
+## M5.1
+
+Observation-aware retrieval
+
+Implemented:
+
+- M5.1-A deterministic evidence feature extraction
+- M5.1-B feature gate over BM25 retrieval
+- M5.1-C deterministic retrieval evaluation
+
 Current milestone:
 
-## M4.4 Final Freeze
+## M5.1 Final Freeze
 
-M4.4 Final Freeze is complete. M5 has not started.
+M5.1 Final Freeze is complete.
+
+- M5.0: Retrieval contract lock
+- M5.1: Observation-aware retrieval
+- M5.1-A: Deterministic evidence feature extraction
+- M5.1-B: Feature gate over BM25 retrieval
+- M5.1-C: Deterministic retrieval evaluation
+
+M5 not yet complete: a larger independent retrieval evaluation set, and pipeline
+activation of `field_mapping` (the running pipeline does not pass `fields` to
+`retrieve`). The M6 rule / no-RAG / RAG comparison has not started.
 
 ---
 
@@ -647,14 +671,41 @@ Success requires verification.
 
 # Current Milestone
 
-## M4.4 Final Freeze
+## M5.1 Final Freeze
 
 Completed:
 
-- deterministic error taxonomy
-- bounded repair audit
-- deterministic repair proposal
-- validated one-shot repair execution
+- M5.0 retrieval contract lock
+- M5.1-A deterministic evidence feature extraction
+- M5.1-B feature gate over BM25 retrieval
+- M5.1-C deterministic retrieval evaluation
+
+Retrieval result contract (additive only):
+
+Legacy keys preserved:
+
+- enabled
+- algorithm
+- corpus_version
+- corpus_sha256
+- cases
+
+M5.1 additive keys:
+
+- feature_schema_version
+- query_features
+- gate
+
+Feature gate guarantees:
+
+- deterministic, closed-vocabulary comparison; no LLM call, no IO
+- BM25 remains the ranking core; features only gate and lightly re-rank
+- `method` is a safety boundary: a case declaring the other method is filtered,
+  never downweighted, so GET and POST are never converted into each other
+- RAG-off output is unchanged and the frozen corpus has no features, so legacy
+  BM25 scores, ordering and the inactive gate are preserved
+
+Carried over from M4.4 (unchanged):
 
 Repair boundary:
 
@@ -681,4 +732,10 @@ Safety guarantees:
 - no automatic security bypass
 - execution budget bounded
 
-M5 has not started.
+M5 not yet complete:
+
+- a larger independent retrieval evaluation set (the M5.1-C evaluation is a small
+  in-repo fixture, not a benchmark)
+- pipeline activation of `field_mapping` (the running pipeline does not pass
+  `fields` to `retrieve`)
+- the M6 rule / no-RAG / RAG comparison has not started

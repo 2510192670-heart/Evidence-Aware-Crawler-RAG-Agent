@@ -2,7 +2,7 @@
 
 当前可以运行：Playwright 打开学习站并点击下一页 → 生成字段形状摘要 → DeepSeek Flash 生成计划 → 校验计划 → httpx 分页采集 → 保存数据、报告和确定性 collector.py；也可用 cURL 导入重放 GET 或同源 POST JSON 请求。
 
-本文描述独立 CLI。任务 API、数据库、Vue 控制台、BM25 案例 RAG 与确定性采集脚本导出均已实现，见 TASK_API.md；有限错误类型的确定性边界修复（M4.4 bounded deterministic repair）也已实现，模型只负责 proposal，执行由 deterministic validation 控制，详见 M4.4_EVALUATION_REPORT.md。
+本文描述独立 CLI。任务 API、数据库、Vue 控制台、BM25 案例 RAG 与确定性采集脚本导出均已实现，见 TASK_API.md；有限错误类型的确定性边界修复（M4.4 bounded deterministic repair）也已实现，模型只负责 proposal，执行由 deterministic validation 控制，详见 M4.4_EVALUATION_REPORT.md。检索自 M5.1 起为 BM25 + observation-aware feature gate：BM25 仍是排序主体，叠加确定性证据特征做结构匹配过滤与轻量重排（无 embedding / 向量数据库 / reranker / 额外模型调用）。M5.1 检索契约保持 legacy 字段并 additive 追加 `feature_schema_version` / `query_features` / `gate`。
 
 ## 准备
 
@@ -70,7 +70,7 @@ Set-Location E:\PaChongLLMragzuoping
 
 - `evidence.json`：请求 ID、参数变化、响应字段形状；不保存完整响应或请求头。
 - `cloud_payload.json`：实际交给模型的业务输入，可核查上传范围；系统 schema/格式指令由网关附加。
-- `retrieval.json`：BM25 检索开关、算法、案例库版本与命中案例；关闭 RAG 时 cases 为空。
+- `retrieval.json`：BM25 + observation-aware feature gate 的检索结果。legacy 字段：`enabled`、`algorithm`、`corpus_version`、`corpus_sha256`、命中案例 `cases`；M5.1 additive 追加 `feature_schema_version`、`query_features`、`gate`。关闭 RAG 时仅保留 legacy 字段且 `cases` 为空，输出与旧契约完全一致。
 - `plan.json`：模型提出的计划；是否验证成功以 report 为准。
 - `result.json`：成功采集的数据；部分采集也会保存，完整性见报告。
 - `collector.py`：由已验证计划与固定模板生成的独立采集脚本；`collector_result.json` 是它的运行结果，`collector_verification.json` 记录与内部结果的比对。

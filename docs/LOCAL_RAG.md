@@ -18,13 +18,25 @@ API 仍在 http://127.0.0.1:8002/docs ，测试站在 http://127.0.0.1:8000/ 。
 .venv/Scripts/python.exe -m backend.app.pipeline.run --no-rag
 ```
 
-任务新增 retrieval.json，可通过任务产物列表下载。内容包含开关、算法、案例库版本、库文件 SHA256、命中案例及分数。报告包含案例 ID；cloud_payload.json 可核对实际送入模型的参考案例。关闭时不添加 reference_cases。
+任务新增 retrieval.json，可通过任务产物列表下载。legacy 字段：`enabled`、`algorithm`、`corpus_version`、`corpus_sha256`、`cases`（命中案例及分数）。M5.1 起 additive 追加：`feature_schema_version`、`query_features`（查询侧证据特征）、`gate`（feature gate 裁决：`applied` / `filtered` / `matched` / `conflicted`）。报告包含案例 ID；cloud_payload.json 可核对实际送入模型的参考案例。关闭 RAG 时输出与旧契约完全一致（仅 5 个 legacy 字段、cases 为空），且不添加 reference_cases。
 
 ## 案例库及边界
 
 backend/app/rag/cases.json 是人工编写的 6 个教学案例，覆盖顶层列表、嵌套列表、别名映射、总数校验，以及尚不支持的游标和 offset 分页边界。它们不是从真实用户任务自动学习所得，也不是评测集。
 
 只使用脱敏摘要的 query 和 response_shape 中的结构键做检索；不使用响应值、URL 或密钥。当前针对英文接口字段名分词，不是中文全文搜索。按正相关分数选至多 2 个案例，无匹配则不注入。相同分数按案例 ID 排序。案例只提供参考；原有本机地址、字段、页码、唯一键和完整性验证仍生效。添加案例不会扩展执行器支持范围。
+
+## M5.1 feature gate（观测感知检索）
+
+在 BM25 之上叠加一层确定性结构匹配，BM25 仍是排序主体：
+
+- **确定性**：`match_features` 只做闭集枚举比较（exact match 加分、conflict 降权、unknown 不惩罚），无模糊推理、无字符串生成。
+- **无模型调用**：不引入 embedding、向量数据库或 reranker，也不增加任何 LLM 调用。
+- **additive 契约**：`retrieval.json` 的 legacy 字段不变，仅追加 `feature_schema_version` / `query_features` / `gate`；旧案例（无 `features`）与旧调用方继续正常工作。
+- **BM25 兼容性保持**：冻结案例库不含 `features` 时 `gate.applied=false`，BM25 分数、排序与旧行为完全一致；关闭 RAG 时输出与旧契约逐字段相同。
+- **安全边界**：`method` 属于硬边界，声明相反 method 的案例会被过滤而非降权，避免诱导 GET/POST 互转。
+
+M5.1-C 提供确定性评估（tests/test_rag_evaluation.py）：在同一语料上对比 baseline BM25 与 BM25 + feature gate，只读冻结 benchmark，不改动案例库；评估集是仓库内小样本 fixture，不是 benchmark，结论不外推。
 
 案例库只从代码仓库固定路径加载，不接受网页内容或任务产物自动入库。修改案例需人工审查、更新 corpus_version，并重新测试；文件摘要可识别实际版本。当前小型库同步加载，后续扩大时再缓存或转数据库。
 

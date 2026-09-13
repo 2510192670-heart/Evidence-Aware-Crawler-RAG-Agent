@@ -1,14 +1,14 @@
 # Web Data Agent
 
-本地采集工具 + DeepSeek Flash API。已实现浏览器观察、采集计划与校验、BM25 案例检索、SQLite 任务管理、电脑端 Vue 控制台、本地 cURL 导入预览（GET / 受限 POST JSON）、确定性 collector 导出，以及有限错误类型的确定性边界修复（bounded deterministic repair）。
+本地采集工具 + DeepSeek Flash API。已实现浏览器观察、采集计划与校验、BM25 案例检索、SQLite 任务管理、电脑端 Vue 控制台、本地 cURL 导入预览（GET / 受限 POST JSON）、确定性 collector 导出，以及有限错误类型的确定性边界修复（bounded deterministic repair）。检索侧已升级为 observation-aware：包含确定性证据特征抽取（M5.1-A）、确定性 feature gate（M5.1-B，在 BM25 上做结构匹配过滤与轻量重排，不引入 embedding / 向量数据库 / reranker / 额外模型调用），以及确定性检索评估（M5.1-C，baseline BM25 与 feature gate 消融对照）。
 
-入口：http://127.0.0.1:8002/console/ 。使用方式见 [控制台说明](docs/CONSOLE.md)、[cURL 导入](docs/CURL_IMPORT.md)、[版本控制](docs/VERSION_CONTROL.md)。当前支持本机 GET query 页码分页与 POST JSON body 页码分页；cURL 导入支持 GET 与受限 POST(JSON)；成功任务会导出确定性 collector.py（GET 与 POST 各一套模板）。评测清单 S2（POST JSON）已标记 `supported`，评测基础与冻结数据集见 M4.1。有限错误类型的确定性边界修复（bounded deterministic repair）已落地：模型只提出修复 proposal，是否采纳与执行由 deterministic validation 控制，仅 `pointer_not_found` 会自动应用，`page_location_mismatch` 仅出 proposal，SECURITY / DATA_INTEGRITY / TRANSPORT / UNCLASSIFIED 一律拒绝。当前 313 项 Python 测试通过。
+入口：http://127.0.0.1:8002/console/ 。使用方式见 [控制台说明](docs/CONSOLE.md)、[cURL 导入](docs/CURL_IMPORT.md)、[版本控制](docs/VERSION_CONTROL.md)。当前支持本机 GET query 页码分页与 POST JSON body 页码分页；cURL 导入支持 GET 与受限 POST(JSON)；成功任务会导出确定性 collector.py（GET 与 POST 各一套模板）。评测清单 S2（POST JSON）已标记 `supported`，评测基础与冻结数据集见 M4.1。有限错误类型的确定性边界修复（bounded deterministic repair）已落地：模型只提出修复 proposal，是否采纳与执行由 deterministic validation 控制，仅 `pointer_not_found` 会自动应用，`page_location_mismatch` 仅出 proposal，SECURITY / DATA_INTEGRITY / TRANSPORT / UNCLASSIFIED 一律拒绝。检索结果契约（M5.1 Final Freeze）保持 legacy 字段不变，仅 additive 追加 `feature_schema_version` / `query_features` / `gate`；关闭 RAG 时输出与旧契约完全一致。当前 352 项 Python 测试通过。
 
 下面保留早期学习阶段的记录，涉及“尚未实现”或测试数量的表述仅代表当时状态。
 
 ## 第 1 阶段：页面、分页接口与采集脚本
 
-完整项目的初版范围、确定技术栈、模块接口、验收标准与后续迁移路线见 [初版项目设计](docs/PROJECT_DESIGN_V0.1.md)。下文保留学习原型说明；新增任务 API 见 [任务管理与下载](docs/TASK_API.md)。RAG 和 Vue 控制台尚未实现。
+完整项目的初版范围、确定技术栈、模块接口、验收标准与后续迁移路线见 [初版项目设计](docs/PROJECT_DESIGN_V0.1.md)。下文保留学习原型说明；新增任务 API 见 [任务管理与下载](docs/TASK_API.md)。RAG 和 Vue 控制台尚未实现。（此句为第 1 阶段的历史状态；RAG 与 Vue 控制台后续均已实现，当前状态见上文“阶段更新”与“最新入口”。）
 
 **已选路线：本地工具 + DeepSeek Flash API。** 已完成真实云调用、浏览器观察/计划/执行闭环，以及 SQLite 任务 API（创建、进度、取消、历史与下载）。3 页 30 条结果已通过 API 独立核验，72 项测试通过。[任务 API：8002/docs](http://127.0.0.1:8002/docs) · [CLI 运行说明](docs/RUN_LOCAL_AGENT.md) · [DeepSeek 配置](docs/CLOUD_API_SETUP.md)。支持 `DEEPSEEK_API_KEY`，无需本地生成模型。
 
@@ -112,6 +112,8 @@ Set-Location E:\PaChongLLMragzuoping
 # 阶段更新：本地案例 RAG
 
 已接入可关闭的 BM25 案例检索，默认开启。使用方式与验证边界见 [本地 RAG 说明](docs/LOCAL_RAG.md)。API 创建任务传 `rag_enabled: false` 可关闭，任务产物新增 `retrieval.json`。
+# 阶段更新：observation-aware 检索（M5.1）
+BM25 检索已叠加确定性 feature gate（M5.1）：先用 M5.1-A 从脱敏结构摘要中抽取闭集证据特征，再用 M5.1-B 做结构匹配过滤与轻量重排，BM25 仍是排序主体，不引入 embedding / 向量数据库 / reranker / 额外模型调用。`retrieval.json` 保持 legacy 字段（`enabled` / `algorithm` / `corpus_version` / `corpus_sha256` / `cases`）不变，仅 additive 追加 `feature_schema_version` / `query_features` / `gate`；关闭 RAG 时输出与旧契约完全一致。M5.1-C 提供 deterministic retrieval evaluation（baseline BM25 与 feature gate 的消融对照），不修改冻结 benchmark 与案例库。详见 [本地 RAG 说明](docs/LOCAL_RAG.md) 与 [AGENTS 里程碑](../AGENTS.md)。
 # 最新入口：电脑端控制台
 
-打开 http://127.0.0.1:8002/console/ ，直接创建任务、查看进度与历史、取消任务和下载结果。Vue 3 + TypeScript 控制台已接入真实 API；当前 313 项 Python 测试通过。见 [控制台操作与启动说明](docs/CONSOLE.md)。上方较早阶段的记录保留作开发过程参考。
+打开 http://127.0.0.1:8002/console/ ，直接创建任务、查看进度与历史、取消任务和下载结果。Vue 3 + TypeScript 控制台已接入真实 API；当前 352 项 Python 测试通过。见 [控制台操作与启动说明](docs/CONSOLE.md)。上方较早阶段的记录保留作开发过程参考。

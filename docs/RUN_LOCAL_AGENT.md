@@ -1,8 +1,8 @@
 # 运行本机网页分析闭环
 
-当前可以运行：Playwright 打开学习站并点击下一页 → 生成字段形状摘要 → DeepSeek Flash 生成计划 → 校验计划 → httpx 分页采集 → 保存数据和报告。
+当前可以运行：Playwright 打开学习站并点击下一页 → 生成字段形状摘要 → DeepSeek Flash 生成计划 → 校验计划 → httpx 分页采集 → 保存数据、报告和确定性 collector.py；也可用 cURL 导入重放 GET 或同源 POST JSON 请求。
 
-本文描述独立 CLI。任务 API 和数据库现已实现，见 TASK_API.md；Vue 控制台、RAG、自动修正和采集脚本导出仍未完成。
+本文描述独立 CLI。任务 API、数据库、Vue 控制台、BM25 案例 RAG 与确定性采集脚本导出均已实现，见 TASK_API.md；自动修正（M4.4）仍未完成。
 
 ## 准备
 
@@ -62,7 +62,7 @@ Set-Location E:\PaChongLLMragzuoping
 | --click-text | 下一页 | 观察时点击一次的按钮名称；传空字符串可以跳过 |
 | --max-pages | 3 | 最多 1～10 页 |
 
-页面请求仅允许同 origin 的 GET，请求头含凭证或查询键含敏感字段时不作为候选。其他本机站点属于未验证的兼容性试验，并不保证成功；POST/登录/游标不在当前范围。
+浏览器观察仅接受同 origin 的 GET 与同源 JSON POST；请求头含凭证、或查询键/请求体键含敏感字段时不作为候选。POST JSON body 页码分页已支持（计划声明 `pagination_location="json_body"`，也可通过 cURL 导入 POST）。登录、游标与 offset 分页仍不在当前范围；其他本机站点属于未验证的兼容性试验，并不保证成功。
 
 ## 4. 查看产物
 
@@ -95,7 +95,7 @@ Set-Location E:\PaChongLLMragzuoping
 
 这些是本机单次运行结果，不是通用成功率、性能保证或费用报价。
 
-本节为早期记录；当前 162 项本地测试通过（新增 48 项覆盖多结构靶场与冻结评测清单）。现有 FastAPI/Starlette 测试客户端仍有两项弃用提示，不影响测试结果；未为消除提示额外升级框架。
+本节为早期记录；当前 250 项本地测试通过。现有 FastAPI/Starlette 测试客户端仍有两项弃用提示，不影响测试结果；未为消除提示额外升级框架。
 
 ## 6. 多结构靶场与冻结评测清单（M4.1 已完成）
 
@@ -116,11 +116,11 @@ M4.1 建立了后续 M4/M6 共用的本机测试与评测基础，**未修改生
 评测清单 `benchmarks/tasks.json` 共 20 个任务槽位（S1～S5 各 4 个，每类 2 个 `dev` + 2 个 `held_out`）：
 
 - `solution` 是标准答案（方法、路由、分页参数、指针、唯一键），`expected` 声明预期条数/页数/完整性，或预期失败码。
-- S2 任务仍标记 `"supported": false` 与 `"unsupported_until": "M4.3"`；执行器已能完成这些任务，但清单的能力声明与哈希翻转刻意留到最后一步（M4.3.3，与 cURL 导入、collector 导出一起）。
+- S2 任务在 M4.3.3 完成后已标记 `"supported": true`，并移除 `"unsupported_until"`；清单的能力声明与内容哈希一并更新。
 - 内容哈希记录在 `benchmarks/tasks.sha256`；测试会重新计算 canonical SHA-256，任何任务改动都会被发现。
 - 留出隔离由测试强制：dev / held_out 的路由名、字段名、分页键三者互不重叠，且留出任务的名称不会出现在 RAG 案例语料中。
 
-尚未完成：POST 的 cURL 导入与 collector 导出、清单 capability 翻转、bounded repair，以及规则 / 无 RAG / RAG 三组对照的最终运行与结论。M4.1 只提供冻结靶场与标准答案，对照结论属于 M6；错误分类基线见下一节。
+M4.3.3 已完成 POST 的 cURL 导入、collector 导出与清单 capability 翻转；M4.3.4 进一步打通了导入请求元数据（method/request_body）到任务编排与执行。尚未完成：bounded repair（M4.4），以及规则 / 无 RAG / RAG 三组对照的最终运行与结论。M4.1 只提供冻结靶场与标准答案，对照结论属于 M6；错误分类基线见下一节。
 
 ## 7. 错误分类（M4.2 第一批）
 
@@ -136,4 +136,4 @@ M4.1 建立了后续 M4/M6 共用的本机测试与评测基础，**未修改生
 
 ## 8. 下一阶段
 
-任务状态/API、持久化、案例 RAG、Vue 控制台、cURL 导入、确定性 collector 导出、M4.1 多结构靶场与冻结评测清单、M4.2 错误分类基线、M4.3.1 POST 证据层、M4.3.2 POST 计划与执行均已完成。下一步是 M4.3.3（POST cURL 导入、collector 导出与清单翻转），随后是 M4.4 受限自动修正（届时会按类别扩大错误码迁移范围）。公网目标策略另行设计，现有学习站继续作为回归基线。
+任务状态/API、持久化、案例 RAG、Vue 控制台、cURL 导入（GET/POST）、确定性 collector 导出（GET/POST）、M4.1 多结构靶场与冻结评测清单、M4.2 错误分类基线、M4.3.1 POST 证据层、M4.3.2 POST 计划与执行、M4.3.3 POST cURL 导入与 collector 导出与清单翻转、M4.3.4 导入元数据贯通任务编排均已完成。下一步是 M4.4 受限自动修正（届时会按类别扩大错误码迁移范围）。公网目标策略另行设计，现有学习站继续作为回归基线。

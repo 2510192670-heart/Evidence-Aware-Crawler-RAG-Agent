@@ -1,26 +1,38 @@
 # AGENTS.md
 
-## Project Overview
+# Project Overview
 
 This repository contains **Web Data Agent**, a local learning and demonstration project for AI-assisted web data collection.
 
 The current system pipeline is:
 
 User Task
+
 → Browser / cURL Observation
+
 → Evidence
+
 → Redaction & Schema
+
 → BM25 Case Retrieval
+
 → LLM Planning
+
 → Plan Validation
+
 → Execution
+
 → Verification
+
 → Artifacts
+
 → SQLite
 
 The system is intentionally limited in scope.
 
-It is NOT a general-purpose crawler and should not be expanded beyond the current milestone without explicit user approval.
+It is NOT a general-purpose crawler.
+
+Do not expand system capabilities beyond the current milestone without explicit user approval.
 
 ---
 
@@ -34,7 +46,14 @@ The LLM is a planner, not a trusted executor.
 
 Prefer deterministic program logic whenever a task can be solved reliably without an LLM.
 
-Never execute arbitrary Python, JavaScript, shell commands, or other code generated directly by the LLM.
+Never execute arbitrary:
+
+- Python
+- JavaScript
+- shell commands
+- generated scripts
+
+directly from LLM output.
 
 All model-generated plans must pass deterministic validation before execution.
 
@@ -77,7 +96,8 @@ Do not replace the current RAG implementation unless the active milestone explic
 The current supported collection scope is intentionally restricted to:
 
 - literal loopback targets
-- GET requests
+- same-origin GET requests
+- same-origin JSON POST requests
 - page-number pagination
 - maximum 10 pages
 - local execution
@@ -87,59 +107,134 @@ The current supported collection scope is intentionally restricted to:
 Currently unsupported:
 
 - public Internet targets
-- POST pagination other than JSON-body page-number pagination (see M4.3 POST JSON Capability Rules)
 - cursor pagination
 - offset pagination
 - authentication workflows
 - CAPTCHA
 - multi-user systems
 - distributed workers
+- arbitrary POST requests
 
 Do not silently expand these capabilities.
 
 ---
 
-## M4.3 POST JSON Capability Rules
+# M4.3 GET / POST JSON Capability Rules
 
-### Supported Capabilities
+## Supported Capabilities
+
+Supported:
 
 - GET query page-number pagination
 - POST JSON-body page-number pagination
 
-### POST Safety Boundary
+The POST capability is intentionally limited.
+
+---
+
+## POST Safety Boundary
 
 Allowed:
 
 - loopback targets
-- `application/json` content type
+- application/json content type
 - top-level JSON object body
 - page-number pagination
 
 Forbidden:
 
 - arbitrary POST
-- form / multipart bodies
+- form bodies
+- multipart bodies
 - mutation endpoints
 - authentication replay
-- cookie / token forwarding
+- cookie/token forwarding
 
-### Evidence-Driven Execution
+---
+
+## Evidence-Driven Execution
+
+The request method is determined by evidence.
+
+Rules:
 
 - the model cannot invent the request method
 - GET and POST cannot be converted into each other
-- execution may only mutate the page field
+- execution may only mutate the observed page field
+- pagination location must match observed evidence
 
-### Collector Rules
+Allowed pagination mutation:
 
-- generated collectors must be standalone
-- standard library only
-- no backend imports
-- GET collectors must remain backward compatible
-- POST collectors use a separate template path
+- query page field
+- JSON body top-level page field
 
-### Benchmark Rule
+Not allowed:
 
-A case may be marked `supported=true` only when it has all of:
+- modifying unrelated request fields
+- inventing hidden parameters
+- changing request semantics
+
+---
+
+# Imported Request Rules
+
+Imported requests are evidence, not executable commands.
+
+For cURL imports:
+
+- parsing happens only inside curl_import
+- downstream pipeline receives structured metadata
+- do not reparse cURL text after import
+- preserve GET backward compatibility
+- POST imports must preserve method and JSON body shape
+
+Imported request metadata:
+
+- method
+- request body
+
+must be treated as validated evidence.
+
+Sensitive request metadata must be rejected before task creation.
+
+Do not allow imported requests to bypass normal validation.
+
+---
+
+# Collector Rules
+
+Generated collectors are deterministic execution artifacts.
+
+Rules:
+
+- collectors must be standalone
+- collectors must use standard library only unless explicitly approved
+- collectors must not import backend modules
+- collectors must not execute arbitrary generated code
+
+GET and POST collectors use separate template paths.
+
+Additional requirements:
+
+- GET collector behavior is frozen
+- POST collector must not modify GET behavior
+- exported collector results must be verified against internal executor results
+- changes to collector templates require explicit review
+
+The collector is not trusted because it was generated.
+
+It is trusted only after deterministic verification.
+
+---
+
+# Benchmark Rules
+
+Benchmark datasets are evaluation contracts.
+
+A case may be marked:
+supported=true
+
+only when it has:
 
 - observation
 - planning
@@ -147,29 +242,38 @@ A case may be marked `supported=true` only when it has all of:
 - export
 - verification
 
-### Current Milestone
+Do not modify:
 
-M4.3.3: POST cURL import + deterministic collector export
+- benchmarks/tasks.json
+- benchmarks/tasks.sha256
+
+without explicit milestone approval.
+
+Benchmark changes require:
+
+- updated hash
+- regression verification
+- documented reason
 
 ---
 
 # Network Security Boundary
 
-Target validation is part of the system design and must not be weakened.
+Target validation is part of the system design.
 
-Browser-side and HTTP-client-side target restrictions must remain consistent.
+Browser-side and HTTP-client-side restrictions must remain consistent.
 
 Do not bypass target validation for convenience.
 
 Do not introduce shell execution for imported cURL commands.
 
-cURL import must remain a parser for a controlled subset rather than a shell execution mechanism.
+cURL import is a parser for a controlled subset, not a command execution mechanism.
 
 ---
 
 # Sensitive Data
 
-Sensitive information must not be leaked into:
+Sensitive information must not leak into:
 
 - prompts
 - RAG documents
@@ -177,7 +281,7 @@ Sensitive information must not be leaked into:
 - artifacts
 - exported collectors
 
-Examples include:
+Examples:
 
 - Authorization
 - Cookie
@@ -185,9 +289,9 @@ Examples include:
 - access tokens
 - secrets
 
-Reuse the project's existing redaction and contract logic whenever possible.
+Reuse existing redaction and contract logic.
 
-Do not create an independent conflicting redaction implementation.
+Do not create conflicting independent redaction systems.
 
 ---
 
@@ -196,44 +300,59 @@ Do not create an independent conflicting redaction implementation.
 The existing pipeline is considered a stable contract:
 
 Observe
+
 → Evidence
+
 → Redaction
+
 → Retrieval
+
 → Planning
+
 → Validation
+
 → Execution
+
 → Verification
+
 → Artifact persistence
 
 Before changing pipeline behavior:
 
-1. inspect the existing implementation;
-2. inspect related tests;
-3. identify the smallest integration point;
-4. preserve backward compatibility whenever possible.
+1. inspect existing implementation
+2. inspect related tests
+3. identify smallest integration point
+4. preserve backward compatibility
 
-Avoid introducing parallel implementations of existing functionality.
+Avoid parallel implementations.
 
 ---
 
 # Development Workflow
 
-For every development task, follow:
+For every development task:
 
 Inspect
+
 → Understand
+
 → Design
+
 → Test
+
 → Implement
+
 → Targeted Test
+
 → Full Regression Test
+
 → Live Verification
 
-Do not begin implementation before inspecting the relevant existing code.
+Do not begin implementation before inspecting relevant code.
 
 Prefer small, reviewable changes.
 
-Do not perform unrelated refactoring while implementing a feature.
+Do not perform unrelated refactoring.
 
 ---
 
@@ -243,30 +362,37 @@ Existing passing tests are regression protection.
 
 Never:
 
-- delete a test simply because a new implementation fails it;
-- weaken assertions merely to make tests pass;
-- replace meaningful integration tests with mocks;
-- hide failures using broad exception handling.
+- delete tests because implementation fails
+- weaken assertions
+- replace meaningful integration tests with mocks
+- hide failures using broad exception handling
 
 When adding behavior:
 
-1. add or update appropriate tests;
-2. run targeted tests;
-3. run the full test suite.
+1. add/update tests
+2. run targeted tests
+3. run full regression tests
+4. perform live verification when applicable
 
-Live pipeline features should also receive real local integration verification when practical.
+Milestone changes should report:
+
+- tests executed
+- benchmark impact
+- artifact impact
 
 ---
 
 # Real Verification
 
-Mock tests are useful for isolated components but must not replace end-to-end verification of critical pipeline behavior.
+Mock tests are useful for isolated components.
 
-For features involving actual collection:
+They must not replace end-to-end verification.
 
-prefer verification against the project's controlled loopback test site.
+For collection features:
 
-Where applicable verify:
+prefer controlled loopback verification.
+
+Verify:
 
 - task completion
 - page count
@@ -281,24 +407,56 @@ Where applicable verify:
 # Artifact Compatibility
 
 Task artifacts are stored under:
-
 data/tasks/{task_id}/
 
-Existing artifact names and schemas should be treated as compatibility contracts.
+Existing artifacts are compatibility contracts.
 
-Do not rename or remove existing artifacts without explicit approval.
+Do not:
 
-New features should preferably add artifacts rather than mutate unrelated existing ones.
+- rename artifacts
+- remove artifacts
+- change schemas
+
+without explicit approval.
+
+Prefer adding new artifacts.
 
 ---
 
 # LLM Budget
 
-Respect existing model-call and timeout budgets.
+Respect existing:
 
-Do not increase model calls merely to improve convenience.
+- model-call limits
+- timeout budgets
 
-Before adding another LLM call, determine whether deterministic code can perform the same operation.
+Do not add LLM calls for convenience.
+
+Before adding an LLM step, determine whether deterministic code can solve the problem.
+
+---
+
+# Bounded Repair Rules
+
+Repair is controlled behavior.
+
+It is not unlimited retry.
+
+Any repair mechanism must:
+
+- be driven by registered error taxonomy
+- only handle explicitly repairable errors
+- have bounded retry count
+- validate repaired plans before execution
+- verify repaired results afterward
+
+Never:
+
+- allow unrestricted LLM self-modification
+- retry forever
+- bypass validation
+- repair security failures automatically
+- directly modify executable collectors
 
 ---
 
@@ -310,50 +468,49 @@ Prefer:
 - explicit contracts
 - clear error types
 - deterministic behavior
-- reuse of existing validators
+- existing validators
 - separation between planning and execution
 
 Avoid:
 
 - unnecessary abstraction
-- premature framework introduction
+- premature frameworks
 - duplicate validators
 - hidden side effects
-- broad catch-all exception handling
-- large unrelated refactors
+- broad exception catching
+- unrelated refactoring
 
-Comments should explain **why**, especially for non-obvious constraints.
+Comments should explain why.
 
 ---
 
 # Dependency Policy
 
-Do not add dependencies unless they provide clear value that cannot reasonably be achieved using existing dependencies or the Python standard library.
+Do not add dependencies unless necessary.
 
-Do not perform broad dependency upgrades as part of unrelated feature work.
+Do not perform broad dependency upgrades during unrelated work.
 
-Dependency changes must be explicitly reported.
+Dependency changes require explicit reporting.
 
 ---
 
 # Git Rules
 
-Before significant work, inspect:
-
+Before significant work inspect:
 git status
 git branch
 git log --oneline --decorate -10
 
-Never perform without explicit user approval:
+Never perform without approval:
 
 - force push
 - destructive reset
-- history rewriting
-- deleting branches
+- history rewrite
+- branch deletion
 
 Do not push automatically.
 
-At the end of a development task report:
+At completion report:
 
 - git status
 - git diff --stat
@@ -366,61 +523,88 @@ At the end of a development task report:
 
 Work on one milestone at a time.
 
-Do not implement future roadmap features merely because they appear useful.
+Do not implement future roadmap features because they appear useful.
 
-If a task appears to require a major architectural change, stop and explain:
+For major architectural changes explain:
 
-1. why the current architecture cannot support it;
-2. which modules would need to change;
-3. the regression risks;
-4. the smallest viable alternative.
+1. why current architecture cannot support it
+2. required modules
+3. regression risks
+4. smallest alternative
 
-Wait for user approval before proceeding with major architectural changes.
+Wait for approval before major changes.
 
 ---
 
 # Current Roadmap
 
-The intended high-level roadmap is:
+Completed:
 
-M3
+## M3
+
 Deterministic collector export and verification
 
-M4
-Expanded controlled collection capabilities and bounded repair
+## M4.1
 
-M5
-Improved RAG architecture
+Benchmark foundation and frozen evaluation datasets
 
-M6
-Frozen evaluation datasets, comparative experiments, resource measurements, dependency locking, and portfolio-quality evaluation reports
+## M4.2
 
-Complete and stabilize each milestone before moving to the next.
+Error taxonomy and structured failure reporting
+
+## M4.3
+
+GET/POST JSON controlled collection capability
+
+Implemented:
+
+- POST observation
+- POST execution
+- POST cURL import
+- imported metadata propagation
+- deterministic POST collector export
+
+
+Current milestone:
+
+## M4.4
+
+Bounded repair
+
+Goal:
+
+Controlled error-driven plan repair with deterministic validation.
 
 ---
 
 # Communication
 
-When a task is completed, provide a concise engineering report containing:
+When a task is completed, provide:
 
 ## Changes
+
 Files changed and purpose.
 
 ## Tests
+
 Targeted tests and full regression results.
 
 ## Live Verification
-Real verification performed, when applicable.
+
+Real verification performed.
 
 ## Artifacts
+
 New or modified artifacts.
 
 ## Known Limitations
-Remaining boundaries or risks.
+
+Remaining boundaries and risks.
 
 ## Git
-Current status, diff summary, and suggested commit message.
 
-Do not claim success solely because code was written.
+Current status, diff summary, suggested commit message.
+
+Do not claim success only because code was written.
 
 Success requires verification.

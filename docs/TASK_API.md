@@ -86,7 +86,9 @@ Invoke-WebRequest "http://127.0.0.1:8002/api/v1/artifacts/$($result.id)/download
 
 列表返回产物 UUID、文件名、大小、SHA-256。服务器通过数据库映射读取固定文件名，校验路径和 hash，不接受任意磁盘路径。产物被外部修改后会返回 409 artifact_changed。文件只在任务完成清理并提交终态后公开，不将半写入文件作为完成结果发布。
 
-`result.json` 的完整性要结合任务 summary.completeness 查看；partial 是用户页数上限内的结果。取消/失败任务可能保留此前生成的证据或计划，这些产物不代表采集成功。
+产物白名单：7 个通用文件（evidence / cloud_payload / retrieval / plan / result / report.json / report.md），以及导出脚本产物 `collector.py`、`collector_result.json`、`collector_verification.json`。下载媒体类型按扩展名区分：`.json → application/json`、`.py → text/x-python`、其余 `text/markdown`。
+
+`result.json` 的完整性要结合任务 summary.completeness 查看；partial 是用户页数上限内的结果。summary 另含 `collector_exported`、`collector_execution_success`、`collector_matches_internal_result` 三个布尔值：脚本导出、执行或比对失败只影响这些标记，不改变已成功任务的 status。取消/失败任务可能保留此前生成的证据或计划，这些产物不代表采集成功。
 
 ## 接口表
 
@@ -126,4 +128,11 @@ Invoke-WebRequest "http://127.0.0.1:8002/api/v1/artifacts/$($result.id)/download
 - 单次任务耗时约 5.16 秒，模型调用 1 次，输入 660 tokens、输出 90 tokens。缓存命中 512、未命中 148 属于输入分类，不应重复相加。
 - 真实重启恢复通过离线测试验证；本轮没有为了复测重复发送云端任务。
 
-下一阶段：接入精选案例检索并记录检索证据，然后建设 Vue 任务控制台。脚本导出单独补验收，不能将现有固定 collect.py 当成新任务自动导出的脚本。
+### M3 脚本导出（2026-09-13）
+
+- 114 项离线测试通过（原 100 + collector 导出 14）。
+- 真实任务 `fc56bf6c-4a0b-473a-8743-aa7d7e060cf0`：3 页 30 条 complete；`collector_exported`、`collector_execution_success`、`collector_matches_internal_result` 均为 true；模型调用 2 次（首次连接类短暂失败后重试成功）。
+- 通过 artifact API 下载 `collector.py`（媒体类型 text/x-python），脱离 Agent 独立运行得到 30 条 3 页 complete，与内部 `result.json` 逐条一致。
+- 注意：浏览器观察路径依赖 Playwright，在受限环境（如工具沙箱）中可能超时；此时可用已支持的 cURL 导入路径完成任务。
+
+下一阶段：M4——POST JSON 页码分页与受限自动修正；随后是多结构靶场与冻结评测集的三组对照。脚本导出已完成，不能把固定 collect.py 当作本次自动导出的脚本。

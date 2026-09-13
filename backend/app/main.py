@@ -197,7 +197,12 @@ def create_app(data_dir=None, config_factory=CloudConfig.deepseek_from_env, work
         if entry is None:
             raise APIError(404, 'artifact_not_found')
         raw = await artifact_content(entry)
-        media = 'application/json' if entry['filename'].endswith('.json') else 'text/markdown'
+        if entry['filename'].endswith('.json'):
+            media = 'application/json'
+        elif entry['filename'].endswith('.py'):
+            media = 'text/x-python'
+        else:
+            media = 'text/markdown'
         return Response(raw, media_type=media, headers={
             'Content-Disposition': f'attachment; filename="{entry["filename"]}"',
             'X-Content-Type-Options': 'nosniff',

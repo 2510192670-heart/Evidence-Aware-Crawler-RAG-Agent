@@ -16,6 +16,7 @@ from ..llm.gateway import CloudGateway, GatewayError
 from ..rag.retrieval import retrieve
 from .contracts import ExtractionPlan, cloud_summary, local_origin
 from .execution import execute_plan
+from .export import export_collector
 from .observe import observe
 from .curl_import import observe_imported
 
@@ -78,6 +79,14 @@ async def run_task(args, config, *, task_id=None, output_root=None, on_stage=Non
             save_json(folder / 'result.json', collected['items'])
             report.update(status='succeeded', count=len(collected['items']), pages=collected['pages'],
                           completeness=collected['completeness'], expected_total=collected['expected_total'])
+        # 核心采集成功后再导出独立脚本；导出/执行/比对失败只记录状态，不改变已成功的任务结果。
+        try:
+            chosen = next((item for item in observations if item.request_id == plan.request_id), None)
+            report.update(await export_collector(folder, plan, chosen, collected, args.max_pages))
+        except Exception:
+            report['collector_exported'] = False
+            report['collector_execution_success'] = False
+            report['collector_matches_internal_result'] = False
     except GatewayError as error:
         report.update(status='failed', error=error.code)
     except (ValueError, httpx.HTTPError, BrowserError, TimeoutError, OSError) as error:
@@ -94,7 +103,7 @@ async def run_task(args, config, *, task_id=None, output_root=None, on_stage=Non
         (folder / 'report.md').write_text(
             '# 本机测试站分析报告\n\n'
             + '\n'.join(f'- {key}: {value}' for key, value in report.items())
-            + '\n\n范围：本机 GET 页码分页；支持可关闭的本地案例 RAG，尚无 Vue 控制台。\n', encoding='utf-8')
+            + '\n\n范围：本机 GET 页码分页；支持可关闭的本地案例 RAG；成功任务另导出独立 collector.py。\n', encoding='utf-8')
     if not quiet:
         print(json.dumps(report, ensure_ascii=False, indent=2))
         print(f'产物目录：{folder}')

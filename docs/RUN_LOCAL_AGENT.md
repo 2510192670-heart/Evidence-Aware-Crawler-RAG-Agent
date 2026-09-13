@@ -70,8 +70,10 @@ Set-Location E:\PaChongLLMragzuoping
 
 - `evidence.json`：请求 ID、参数变化、响应字段形状；不保存完整响应或请求头。
 - `cloud_payload.json`：实际交给模型的业务输入，可核查上传范围；系统 schema/格式指令由网关附加。
+- `retrieval.json`：BM25 检索开关、算法、案例库版本与命中案例；关闭 RAG 时 cases 为空。
 - `plan.json`：模型提出的计划；是否验证成功以 report 为准。
 - `result.json`：成功采集的数据；部分采集也会保存，完整性见报告。
+- `collector.py`：由已验证计划与固定模板生成的独立采集脚本；`collector_result.json` 是它的运行结果，`collector_verification.json` 记录与内部结果的比对。
 - `report.json` / `report.md`：状态、条数、完整性、时间与用量；失败也生成报告。
 
 云输入使用类型占位符，如 `<string>`、`<integer>`；不传商品名称值、本机 origin、Cookie 或认证头。保留字段名和短数字查询值是为了推断分页；这一策略针对自建测试站，不等于任意网站的通用隐私脱敏器。
@@ -93,8 +95,8 @@ Set-Location E:\PaChongLLMragzuoping
 
 这些是本机单次运行结果，不是通用成功率、性能保证或费用报价。
 
-58 项本地测试通过，`pip check` 通过。现有 FastAPI/Starlette 测试客户端仍有两项弃用提示，不影响本轮测试结果；未为消除提示额外升级框架。
+本节为早期记录；当前 114 项本地测试通过。现有 FastAPI/Starlette 测试客户端仍有两项弃用提示，不影响测试结果；未为消除提示额外升级框架。
 
 ## 6. 下一阶段
 
-任务状态/API 和持久化已完成，接下来增加精选案例 RAG 与 Vue 界面。公网目标策略、POST 查询和脚本导出分别补测试后加入；现有学习站继续作为回归基线。
+任务状态/API、持久化、案例 RAG、Vue 控制台、cURL 导入与确定性 collector 导出均已完成。下一步为 M4：POST JSON 页码分页与受限自动修正；随后是多结构靶场与冻结评测集的三组对照。公网目标策略另行设计，现有学习站继续作为回归基线。

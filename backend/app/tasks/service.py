@@ -9,7 +9,9 @@ from ..storage.repository import BusyError, TERMINAL
 async def pipeline_worker(spec, config, task_id, root, stage):
     args = SimpleNamespace(url=spec['url'], fields=','.join(spec['fields']),
                            max_pages=spec['max_pages'], click_text=spec['click_text'],
-                           rag_enabled=spec.get('rag_enabled', True), imported_url=spec.get('imported_url'))
+                           rag_enabled=spec.get('rag_enabled', True), imported_url=spec.get('imported_url'),
+                           imported_method=spec.get('imported_method', 'GET'),
+                           imported_request_body=spec.get('imported_request_body'))
     await run_task(args, config, task_id=task_id, output_root=root, on_stage=stage, quiet=True)
     return json.loads((root / 'tasks' / task_id / 'report.json').read_text(encoding='utf-8'))
 

@@ -7,7 +7,7 @@ const route=useRoute(), router=useRouter()
 const tasks=ref<Task[]>([]), selected=ref<Task|null>(null), artifacts=ref<Artifact[]>([]), events=ref<{seq:number,status:string}[]>([])
 const page=ref(1),total=ref(0),error=ref(''), actionError=ref(''),loading=ref(true),pending=ref(false),configured=ref(false)
 const url=ref('http://127.0.0.1:8000/'),fields=ref('id,name,price_fen'),maxPages=ref(3),clickText=ref('下一页'),rag=ref(true)
-const curlText=ref(''), curlPreview=ref<{executable:boolean,url:string|null,query:Record<string,string>,reasons:string[],notes?:string[]}|null>(null), previewBusy=ref(false)
+const curlText=ref(''), curlPreview=ref<{executable:boolean,url:string|null,query:Record<string,string>,method?:string,request_body?:Record<string,unknown>|null,reasons:string[],notes?:string[]}|null>(null), previewBusy=ref(false)
 watch(curlText,()=>{curlPreview.value=null})
 async function previewCurl(){previewBusy.value=true;actionError.value='';curlPreview.value=null;try{curlPreview.value=await request('/import/curl',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:curlText.value})})}catch(e){actionError.value=explain(e)}finally{previewBusy.value=false}}
 const terminal=['succeeded','failed','cancelled','interrupted']
@@ -29,7 +29,7 @@ async function refresh(){if(refreshing)return;refreshing=true;const g=generation
 async function poll(){await refresh();if(alive)timer=setTimeout(poll,1500)}
 watch(()=>route.params.taskId,()=>{generation++;selected.value=null;artifacts.value=[];events.value=[];actionError.value='';void refresh()})
 async function changePage(delta:number){page.value+=delta;generation++;await refresh()}
-async function create(){if(pending.value)return;pending.value=true;actionError.value='';try{const task=await request('/tasks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url.value.trim(),fields:fields.value.split(',').map(x=>x.trim()).filter(Boolean),max_pages:maxPages.value,click_text:clickText.value,rag_enabled:rag.value,imported_url:curlPreview.value?.executable?curlPreview.value.url:null})});page.value=1;await router.push('/'+task.id);await refresh()}catch(e){actionError.value=explain(e)}finally{pending.value=false}}
+async function create(){if(pending.value)return;pending.value=true;actionError.value='';try{const task=await request('/tasks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url.value.trim(),fields:fields.value.split(',').map(x=>x.trim()).filter(Boolean),max_pages:maxPages.value,click_text:clickText.value,rag_enabled:rag.value,imported_url:curlPreview.value?.executable?curlPreview.value.url:null,imported_method:curlPreview.value?.executable?(curlPreview.value.method||'GET'):'GET',imported_request_body:curlPreview.value?.executable?(curlPreview.value.request_body??null):null})});page.value=1;await router.push('/'+task.id);await refresh()}catch(e){actionError.value=explain(e)}finally{pending.value=false}}
 async function cancel(){if(!selected.value)return;pending.value=true;actionError.value='';try{await request('/tasks/'+selected.value.id+'/cancel',{method:'POST'});await refresh()}catch(e){actionError.value=explain(e)}finally{pending.value=false}}
 function date(s:string){return new Date(s).toLocaleString('zh-CN',{hour12:false})}
 function reached(s:string){return events.value.some(e=>e.status===s)}

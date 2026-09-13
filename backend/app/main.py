@@ -11,11 +11,11 @@ from fastapi import FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .llm.config import CloudConfig
-from .pipeline.contracts import local_origin, SENSITIVE
+from .pipeline.contracts import local_origin, has_sensitive_keys, SENSITIVE
 from .pipeline.curl_import import parse_curl, checked_url
 from .storage.instance_lock import InstanceLock
 from .storage.repository import Repository, BusyError, TERMINAL
@@ -30,11 +30,32 @@ class TaskInput(BaseModel):
     click_text: str = Field(default='下一页', max_length=80)
     rag_enabled: bool = True
     imported_url: str | None = Field(default=None, max_length=512)
+    # 复用 curl_import 已解析的请求元数据；不再二次解析原始 cURL 文本。
+    imported_method: str = Field(default='GET', max_length=8)
+    imported_request_body: dict | None = Field(default=None)
 
     @field_validator('imported_url')
     @classmethod
     def check_imported(cls, value):
         return checked_url(value) if value is not None else None
+
+    @model_validator(mode='after')
+    def check_imported_request(self):
+        """导入元数据必须与 imported_url 同时出现，且方法与请求体形态一致。"""
+        if self.imported_url is None:
+            if self.imported_method != 'GET' or self.imported_request_body is not None:
+                raise ValueError('imported_request_requires_url')
+            return self
+        if self.imported_method not in {'GET', 'POST'}:
+            raise ValueError('unsupported_imported_method')
+        if self.imported_method == 'GET':
+            if self.imported_request_body is not None:
+                raise ValueError('get_import_must_not_carry_request_body')
+        elif not isinstance(self.imported_request_body, dict) or not self.imported_request_body:
+            raise ValueError('post_import_requires_json_object_body')
+        elif has_sensitive_keys(self.imported_request_body):
+            raise ValueError('sensitive_imported_body')
+        return self
 
     @field_validator('url')
     @classmethod

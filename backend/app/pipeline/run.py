@@ -57,7 +57,12 @@ async def run_task(args, config, *, task_id=None, output_root=None, on_stage=Non
         async with asyncio.timeout(180):
             await stage('observing', '1/3 观察本机页面和翻页请求…')
             imported_url = getattr(args, 'imported_url', None)
-            observations = await observe_imported(imported_url) if imported_url else await observe(args.url, args.click_text or None)
+            if imported_url:
+                # 直接复用 curl_import 已解析的请求元数据重放，不再次解析 cURL 文本。
+                observations = await observe_imported(imported_url, getattr(args, 'imported_method', 'GET'),
+                                                      getattr(args, 'imported_request_body', None))
+            else:
+                observations = await observe(args.url, args.click_text or None)
             report['source'] = 'curl_import' if imported_url else 'browser'
             # 持久化证据不写完整响应；本机执行仍使用内存中的实际样本校验。
             summaries = [cloud_summary(record) for record in observations[:5]]
@@ -68,9 +73,11 @@ async def run_task(args, config, *, task_id=None, output_root=None, on_stage=Non
             report['retrieval'] = {key: value for key, value in retrieval.items() if key != 'cases'}
             report['retrieval']['case_ids'] = [case['id'] for case in retrieval['cases']]
             payload = {
-                'task': 'Select a real request and map these requested fields for GET page-number collection. '
+                'task': 'Select a real request and map these requested fields for page-number collection. '
                         'Use JSON Pointers. Page numbers start at 1 and increment by 1. '
-                        'Values in response_shape are type placeholders, not actual response values.',
+                        'Set pagination_location to the observed page-number location: '
+                        '"query" for GET, "json_body" for a POST JSON body. '
+                        'Values in response_shape or request_body_shape are type placeholders, not actual response values.',
                 'requested_fields': fields, 'observations': summaries,
             }
             if retrieval['cases']:

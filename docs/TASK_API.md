@@ -134,5 +134,6 @@ Invoke-WebRequest "http://127.0.0.1:8002/api/v1/artifacts/$($result.id)/download
 - 真实任务 `fc56bf6c-4a0b-473a-8743-aa7d7e060cf0`：3 页 30 条 complete；`collector_exported`、`collector_execution_success`、`collector_matches_internal_result` 均为 true；模型调用 2 次（首次连接类短暂失败后重试成功）。
 - 通过 artifact API 下载 `collector.py`（媒体类型 text/x-python），脱离 Agent 独立运行得到 30 条 3 页 complete，与内部 `result.json` 逐条一致。
 - 注意：浏览器观察路径依赖 Playwright，在受限环境（如工具沙箱）中可能超时；此时可用已支持的 cURL 导入路径完成任务。
+- 已知限制（未来增强，非 M3 阻塞项）：`collector_verification.json` 目前只给出整体相等布尔与分项布尔，不包含逐条差异明细。
 
 下一阶段：M4——POST JSON 页码分页与受限自动修正；随后是多结构靶场与冻结评测集的三组对照。脚本导出已完成，不能把固定 collect.py 当作本次自动导出的脚本。

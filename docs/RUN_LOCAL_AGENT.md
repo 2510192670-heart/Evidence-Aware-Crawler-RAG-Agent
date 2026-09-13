@@ -120,8 +120,19 @@ M4.1 建立了后续 M4/M6 共用的本机测试与评测基础，**未修改生
 - 内容哈希记录在 `benchmarks/tasks.sha256`；测试会重新计算 canonical SHA-256，任何任务改动都会被发现。
 - 留出隔离由测试强制：dev / held_out 的路由名、字段名、分页键三者互不重叠，且留出任务的名称不会出现在 RAG 案例语料中。
 
-尚未完成：POST 生产支持、typed error taxonomy、bounded repair，以及规则 / 无 RAG / RAG 三组对照的最终运行与结论。M4.1 只提供冻结靶场与标准答案，对照结论属于 M6。
+尚未完成：POST 生产支持、bounded repair，以及规则 / 无 RAG / RAG 三组对照的最终运行与结论。M4.1 只提供冻结靶场与标准答案，对照结论属于 M6；错误分类基线见下一节。
 
-## 7. 下一阶段
+## 7. 错误分类（M4.2 第一批）
 
-任务状态/API、持久化、案例 RAG、Vue 控制台、cURL 导入、确定性 collector 导出，以及 M4.1 多结构靶场与冻结评测清单均已完成。下一步为 M4.2 确定性错误分类，随后是 M4.3 POST JSON 页码分页与 M4.4 受限自动修正。公网目标策略另行设计，现有学习站继续作为回归基线。
+`backend/app/pipeline/errors.py` 建立确定性错误分类注册表。错误码在抛出处决定，`category / repairable / retryable / detail_keys` 全部由注册表按码查出，调用方无法传入策略字段；未注册的码在构造时立刻失败，任何没有升级为 `PipelineError` 的异常一律归为 `UNCLASSIFIED`，默认不可修复、不可重试（fail-closed）。
+
+- `PipelineError` 继承 `ValueError`，且 `str(error)` 严格等于错误码，因此既有异常测试与消息比较不受影响。
+- 类别：`SECURITY`、`OBSERVATION`、`PLAN_SEMANTIC`、`DATA_INTEGRITY`、`TRANSPORT`、`MODEL_OUTPUT`、`BUDGET`、`UNCLASSIFIED`。
+- 第一批只迁移 5 个码：`pointer_not_found`、`duplicate_id`、`total_changed`、`field_type_changed`、`empty_page_with_next`。其余 raise 点保持裸 `ValueError`，被安全地归为 `UNCLASSIFIED`，不会误开修复入口。
+- `details` 只是结构上下文（页号、字段名、唯一键、指针），有 key 白名单、仅接受标量、超长截断，绝不包含响应值或凭证。
+- 失败报告只新增字段，不改变既有字段：`error`（稳定错误码）、`error_type`、`error_category`、`error_repairable`、`error_retryable`。未迁移路径的 `error` 仍是异常类型名。
+- 导出的 `collector.py` 仍完全不依赖本项目模块，`export.py` 也不依赖 `errors.py`。
+
+## 8. 下一阶段
+
+任务状态/API、持久化、案例 RAG、Vue 控制台、cURL 导入、确定性 collector 导出、M4.1 多结构靶场与冻结评测清单、M4.2 错误分类基线均已完成。下一步是 M4.3 POST JSON 页码分页，随后是 M4.4 受限自动修正（届时会按类别扩大错误码迁移范围）。公网目标策略另行设计，现有学习站继续作为回归基线。

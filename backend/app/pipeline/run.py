@@ -15,6 +15,7 @@ from ..llm.config import CloudConfig
 from ..llm.gateway import CloudGateway, GatewayError
 from ..rag.retrieval import retrieve
 from .contracts import ExtractionPlan, cloud_summary, local_origin
+from .errors import PipelineError, classify
 from .execution import execute_plan
 from .export import export_collector
 from .observe import observe
@@ -25,6 +26,16 @@ def save_json(path: Path, value):
     temporary = path.with_suffix(path.suffix + '.tmp')
     temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False) + '\n', encoding='utf-8')
     temporary.replace(path)
+
+
+def failure_fields(error) -> dict:
+    """稳定的失败分类字段；不写入异常消息、目标 URL 或供应商正文。"""
+    classification = classify(error)
+    return {'error': classification.code,
+            'error_type': type(error).__name__,
+            'error_category': classification.category.value,
+            'error_repairable': classification.repairable,
+            'error_retryable': classification.retryable}
 
 
 async def run_task(args, config, *, task_id=None, output_root=None, on_stage=None, quiet=False):
@@ -88,13 +99,18 @@ async def run_task(args, config, *, task_id=None, output_root=None, on_stage=Non
             report['collector_execution_success'] = False
             report['collector_matches_internal_result'] = False
     except GatewayError as error:
-        report.update(status='failed', error=error.code)
+        report.update(status='failed', **failure_fields(error))
+    except PipelineError as error:
+        # 必须排在 ValueError 之前：PipelineError 是 ValueError 子类，顺序颠倒会丢失分类。
+        report.update(status='failed', **failure_fields(error))
     except (ValueError, httpx.HTTPError, BrowserError, TimeoutError, OSError) as error:
         # 不把网络异常 URL、验证错误输入或供应商正文写入报告。
-        report.update(status='failed', error=type(error).__name__)
+        report.update(status='failed', **failure_fields(error))
     except asyncio.CancelledError:
         report.update(status='cancelled', error='cancelled')
         raise
+    except Exception as error:
+        report.update(status='failed', **failure_fields(error))
     finally:
         report['elapsed_seconds'] = round(time.monotonic() - started, 2)
         report['model_calls'] = gateway.calls

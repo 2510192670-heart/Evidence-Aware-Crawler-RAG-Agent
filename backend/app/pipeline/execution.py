@@ -4,6 +4,7 @@ import math
 import httpx
 
 from .contracts import ExtractionPlan, Observation, SENSITIVE, local_origin, pointer
+from .errors import PipelineError
 
 
 async def execute_plan(client: httpx.AsyncClient, plan: ExtractionPlan,
@@ -56,20 +57,20 @@ async def execute_plan(client: httpx.AsyncClient, plan: ExtractionPlan,
             if type(total) is not int or total < 0:
                 raise ValueError('invalid_total')
             if expected_total is not None and total != expected_total:
-                raise ValueError('total_changed')
+                raise PipelineError('total_changed', details={'page': page})
             expected_total = total
         for item in items:
             output = {name: pointer(item, path) for name, path in plan.fields.items()}
             for name, value in output.items():
                 if type(value) not in {int, float, str, bool} or type(value) != sample_types[name]:
-                    raise ValueError('field_type_changed')
+                    raise PipelineError('field_type_changed', details={'page': page, 'field': name})
                 if isinstance(value, float) and not math.isfinite(value):
                     raise ValueError('non_finite_number')
             key = output[plan.unique_key]
             if type(key) not in {int, str} or key == '':
                 raise ValueError('invalid_unique_key')
             if key in seen:
-                raise ValueError('duplicate_id')
+                raise PipelineError('duplicate_id', details={'page': page, 'unique_key': plan.unique_key})
             seen.add(key)
             collected.append(output)
         if expected_total is not None and len(collected) > expected_total:
@@ -81,7 +82,7 @@ async def execute_plan(client: httpx.AsyncClient, plan: ExtractionPlan,
         else:
             more = bool(items) and (expected_total is None or len(collected) < expected_total)
         if more and not items:
-            raise ValueError('empty_page_with_next')
+            raise PipelineError('empty_page_with_next', details={'page': page})
         if not more:
             if expected_total is not None and len(collected) != expected_total:
                 raise ValueError('incomplete_items')

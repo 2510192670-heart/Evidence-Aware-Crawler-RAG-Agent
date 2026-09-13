@@ -3,6 +3,8 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from .errors import PipelineError
+
 
 SENSITIVE = re.compile(r'password|passwd|secret|token|authorization|cookie|api.?key|email|phone', re.I)
 
@@ -32,10 +34,10 @@ def pointer(data, path: str):
             elif isinstance(data, dict):
                 data = data[key]
             else:
-                raise ValueError('pointer_not_found')
+                raise PipelineError('pointer_not_found', details={'pointer': path})
         return data
     except (KeyError, IndexError, TypeError):
-        raise ValueError('pointer_not_found') from None
+        raise PipelineError('pointer_not_found', details={'pointer': path}) from None
 
 
 class Observation(BaseModel):

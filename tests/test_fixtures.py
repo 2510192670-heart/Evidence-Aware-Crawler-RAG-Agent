@@ -19,6 +19,7 @@ from pydantic import ValidationError
 
 from backend.app.pipeline.contracts import ExtractionPlan, Observation, pointer
 from backend.app.pipeline.curl_import import parse_curl
+from backend.app.pipeline.errors import Category, PipelineError
 from backend.app.pipeline.execution import execute_plan
 from benchmarks import load as load_manifest
 from fixtures.app import app
@@ -125,9 +126,14 @@ def test_drift_fixtures_fail_with_the_declared_code(fixture_server, task):
         async with httpx.AsyncClient(trust_env=False) as http_client:
             with pytest.raises(ValueError) as caught:
                 await execute_plan(http_client, plan_for(task), [record], task['max_pages'])
-            return str(caught.value)
+            return caught.value
 
-    assert asyncio.run(scenario()) == task['expected']['failure_kind']
+    error = asyncio.run(scenario())
+    assert str(error) == task['expected']['failure_kind']
+    # M4.2：同样的字符串，现在带确定性分类。
+    assert isinstance(error, PipelineError)
+    assert error.category is Category.DATA_INTEGRITY
+    assert error.repairable is False
 
 
 def test_fixture_responses_are_repeatable(fixture_server):

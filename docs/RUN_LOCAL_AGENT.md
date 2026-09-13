@@ -95,8 +95,33 @@ Set-Location E:\PaChongLLMragzuoping
 
 这些是本机单次运行结果，不是通用成功率、性能保证或费用报价。
 
-本节为早期记录；当前 114 项本地测试通过。现有 FastAPI/Starlette 测试客户端仍有两项弃用提示，不影响测试结果；未为消除提示额外升级框架。
+本节为早期记录；当前 162 项本地测试通过（新增 48 项覆盖多结构靶场与冻结评测清单）。现有 FastAPI/Starlette 测试客户端仍有两项弃用提示，不影响测试结果；未为消除提示额外升级框架。
 
-## 6. 下一阶段
+## 6. 多结构靶场与冻结评测清单（M4.1 已完成）
 
-任务状态/API、持久化、案例 RAG、Vue 控制台、cURL 导入与确定性 collector 导出均已完成。下一步为 M4：POST JSON 页码分页与受限自动修正；随后是多结构靶场与冻结评测集的三组对照。公网目标策略另行设计，现有学习站继续作为回归基线。
+M4.1 建立了后续 M4/M6 共用的本机测试与评测基础，**未修改生产 pipeline**。新的结构全部放在独立目录 `fixtures/`，不再堆入根目录 `main.py`；既有学习站 `/api/products` 行为不变。
+
+启动靶场（独立 FastAPI 应用，默认 `127.0.0.1:8100`）：
+
+```powershell
+.\.venv\Scripts\python.exe -m fixtures
+```
+
+- S1 `GET` 页码分页变体：路由名、分页参数名、每页参数名、字段名与 total/结束标记名都与学习站不同。
+- S2 `POST` JSON 页码分页 fixture：端点与页面已就绪，供 M4.3 使用；当前 pipeline 仍明确拒绝 POST。
+- S3 嵌套响应：`/data/records` + `/data/totalCount` + `/data/hasMore` 一类结构，覆盖短末页与“只有 total、无结束标记”两种。
+- S4 同 origin 干扰簇：一个真实分页接口 + 一个相似但不可分页的接口 + 一个 metadata/status 接口。
+- S5 确定性漂移：重复唯一键、跨页 total 变化、字段类型变化、空页但结束标记为 true；全部由固定数据集产生，不使用随机数。
+
+评测清单 `benchmarks/tasks.json` 共 20 个任务槽位（S1～S5 各 4 个，每类 2 个 `dev` + 2 个 `held_out`）：
+
+- `solution` 是标准答案（方法、路由、分页参数、指针、唯一键），`expected` 声明预期条数/页数/完整性，或预期失败码。
+- S2 任务标记 `"supported": false` 与 `"unsupported_until": "M4.3"`，不假装当前可通过。
+- 内容哈希记录在 `benchmarks/tasks.sha256`；测试会重新计算 canonical SHA-256，任何任务改动都会被发现。
+- 留出隔离由测试强制：dev / held_out 的路由名、字段名、分页键三者互不重叠，且留出任务的名称不会出现在 RAG 案例语料中。
+
+尚未完成：POST 生产支持、typed error taxonomy、bounded repair，以及规则 / 无 RAG / RAG 三组对照的最终运行与结论。M4.1 只提供冻结靶场与标准答案，对照结论属于 M6。
+
+## 7. 下一阶段
+
+任务状态/API、持久化、案例 RAG、Vue 控制台、cURL 导入、确定性 collector 导出，以及 M4.1 多结构靶场与冻结评测清单均已完成。下一步为 M4.2 确定性错误分类，随后是 M4.3 POST JSON 页码分页与 M4.4 受限自动修正。公网目标策略另行设计，现有学习站继续作为回归基线。

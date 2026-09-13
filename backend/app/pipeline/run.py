@@ -20,7 +20,8 @@ from .execution import execute_plan
 from .export import export_collector
 from .observe import observe
 from .curl_import import observe_imported
-from .repair import RepairContext, audit_document, audit_failure
+from .repair import (MAX_REPAIR_ATTEMPTS, ProposalOutcome, RepairApplication, RepairContext,
+                     RepairProposer, audit_document, evaluate_failure, is_applicable)
 
 
 def save_json(path: Path, value):
@@ -39,6 +40,72 @@ def failure_fields(error) -> dict:
             'error_retryable': classification.retryable}
 
 
+def finalize_repair_fields(report, repair_state):
+    """写入 repair 谱系字段；旧字段保持兼容，新增字段始终存在。"""
+    repaired = repair_state['repaired']
+    proposals, attempts = repair_state['proposals'], repair_state['attempts']
+    if repaired:
+        outcome = 'applied' if report.get('status') == 'succeeded' else 'applied_failed'
+    elif proposals and proposals[-1].outcome == ProposalOutcome.PROPOSED.value:
+        # 有有效候选但不在自动应用白名单内，只审计不执行。
+        outcome = 'deferred'
+    elif attempts:
+        outcome = 'rejected'
+    else:
+        outcome = None
+    report.update(repair_attempted=repaired > 0, repair_count=repaired, repair_outcome=outcome,
+                  repair_applied=repair_state['applied'],
+                  repair_original_plan_hash=repair_state['original_plan_hash'],
+                  repair_candidate_plan_hash=repair_state['candidate_plan_hash'],
+                  repair_execution_plan_hash=repair_state['execution_plan_hash'])
+
+
+async def execute_with_bounded_repair(client, plan, observations, max_pages, record, repair_state,
+                                      proposer=None):
+    """有界执行修复（M4.4.3）：候选最多额外执行 MAX_REPAIR_ATTEMPTS 次。
+
+    原计划、候选计划、执行计划始终是三个独立对象：本函数只把局部变量指向候选，
+    绝不修改或覆盖传入的 ``plan``。返回实际用于执行的计划与采集结果；不可修复的
+    失败原样抛出，交由上层的失败分类处理。
+    """
+    proposer = proposer or RepairProposer()
+    original_hash = plan_hash(plan)
+    repair_state['original_plan_hash'] = original_hash
+    execution_plan = plan
+    while True:
+        try:
+            collected = await execute_plan(client, execution_plan, observations, max_pages)
+        except ValueError as error:
+            attempt, proposal, candidate = evaluate_failure(
+                error, RepairContext(original_plan_hash=original_hash, attempts=repair_state['repaired']),
+                plan, record, proposer=proposer)
+            repair_state['attempts'].append(attempt)
+            if proposal is not None:
+                repair_state['proposals'].append(proposal)
+            # 三重闸门：必须有候选、必须命中自动应用白名单、必须还有修复预算。
+            if (candidate is None or not is_applicable(error, proposal)
+                    or repair_state['repaired'] >= MAX_REPAIR_ATTEMPTS):
+                repair_state['audited_error'] = error
+                repair_state['execution_plan_hash'] = plan_hash(execution_plan)
+                repair_state['execution_result'] = {'status': 'failed', 'error': attempt.error_code}
+                raise
+            execution_plan = candidate          # 只改变量绑定，原计划对象不动
+            repair_state['candidate_plan_hash'] = proposal.candidate_plan_hash
+            repair_state['applied'] = True
+            repair_state['repaired'] += 1
+            continue
+        except Exception as error:
+            # 非计划类失败（网络等）不参与修复，但执行确实发生过。
+            repair_state['execution_plan_hash'] = plan_hash(execution_plan)
+            repair_state['execution_result'] = {'status': 'failed', 'error': type(error).__name__}
+            raise
+        repair_state['execution_plan_hash'] = plan_hash(execution_plan)
+        repair_state['execution_result'] = {'status': 'succeeded', 'count': len(collected['items']),
+                                            'pages': collected['pages'],
+                                            'completeness': collected['completeness']}
+        return execution_plan, collected
+
+
 async def run_task(args, config, *, task_id=None, output_root=None, on_stage=None, quiet=False):
     task_id = task_id or str(uuid.uuid4())
     # 注入 ID 由任务服务生成；对目录使用的 ID 再进行严格规范化。
@@ -48,28 +115,37 @@ async def run_task(args, config, *, task_id=None, output_root=None, on_stage=Non
     folder.mkdir(parents=True)
     started = time.monotonic()
     gateway = CloudGateway(config)
-    # repair_* 是本里程碑新增的稳定契约；M4.4.1 不执行修复，因此始终为未尝试。
-    report = {'task_id': task_id, 'status': 'running', 'model': config.model,
-              'repair_attempted': False, 'repair_count': 0, 'repair_outcome': None}
+    # repair_* 是稳定契约；repair_state 汇总本次任务的全部 repair 审计与谱系。
+    report = {'task_id': task_id, 'status': 'running', 'model': config.model}
     plan = None
+    execution_plan = None
     observations = []
-    repair_attempt = None
-    repair_proposal = None
+    repair_state = {'attempts': [], 'proposals': [], 'original_plan_hash': None,
+                    'candidate_plan_hash': None, 'execution_plan_hash': None,
+                    'applied': False, 'repaired': 0, 'execution_result': None, 'audited_error': None}
     async def stage(name, message):
         if on_stage is not None:
             await on_stage(name)
         if not quiet:
             print(message, flush=True)
 
+    def plan_record():
+        return next((item for item in observations
+                     if plan is not None and item.request_id == plan.request_id), None)
+
     def record_failure(error):
-        """记录失败分类，并审计 repair 策略判定与确定性候选；不执行任何修复。"""
-        nonlocal repair_attempt, repair_proposal
+        """记录失败分类；有界修复驱动已审计过的失败不重复审计。"""
         report.update(status='failed', **failure_fields(error))
-        context = RepairContext(original_plan_hash=plan_hash(plan) if plan is not None else None)
-        record = next((item for item in observations
-                       if plan is not None and item.request_id == plan.request_id), None)
-        repair_attempt, repair_proposal = audit_failure(error, context, plan, record)
-        report['repair_outcome'] = repair_attempt.outcome
+        if repair_state['audited_error'] is error:
+            return
+        original_hash = repair_state['original_plan_hash'] or (plan_hash(plan) if plan is not None else None)
+        repair_state['original_plan_hash'] = original_hash
+        attempt, proposal, _ = evaluate_failure(
+            error, RepairContext(original_plan_hash=original_hash, attempts=repair_state['repaired']),
+            plan, plan_record())
+        repair_state['attempts'].append(attempt)
+        if proposal is not None:
+            repair_state['proposals'].append(proposal)
 
     try:
         async with asyncio.timeout(180):
@@ -110,15 +186,17 @@ async def run_task(args, config, *, task_id=None, output_root=None, on_stage=Non
             save_json(folder / 'plan.json', plan.model_dump())
             await stage('executing', '3/3 校验计划并执行本地分页采集…')
             async with httpx.AsyncClient(trust_env=False) as client:
-                collected = await execute_plan(client, plan, observations, args.max_pages)
+                execution_plan, collected = await execute_with_bounded_repair(
+                    client, plan, observations, args.max_pages, plan_record(), repair_state)
             await stage('verifying', '写入已验证的采集结果…')
             save_json(folder / 'result.json', collected['items'])
             report.update(status='succeeded', count=len(collected['items']), pages=collected['pages'],
                           completeness=collected['completeness'], expected_total=collected['expected_total'])
         # 核心采集成功后再导出独立脚本；导出/执行/比对失败只记录状态，不改变已成功的任务结果。
         try:
-            chosen = next((item for item in observations if item.request_id == plan.request_id), None)
-            report.update(await export_collector(folder, plan, chosen, collected, args.max_pages))
+            # 用真正执行过的计划导出，修复后的任务其 collector 才与内部结果一致。
+            chosen = next((item for item in observations if item.request_id == execution_plan.request_id), None)
+            report.update(await export_collector(folder, execution_plan, chosen, collected, args.max_pages))
         except Exception:
             report['collector_exported'] = False
             report['collector_execution_success'] = False
@@ -137,11 +215,17 @@ async def run_task(args, config, *, task_id=None, output_root=None, on_stage=Non
     except Exception as error:
         record_failure(error)
     finally:
+        finalize_repair_fields(report, repair_state)
         # 审计产物是补充证据：写入失败不应改变已确定的失败分类。
-        if repair_attempt is not None:
-            proposals = [repair_proposal] if repair_proposal is not None else []
+        if repair_state['attempts']:
+            application = RepairApplication(
+                original_plan_hash=repair_state['original_plan_hash'],
+                candidate_plan_hash=repair_state['candidate_plan_hash'],
+                applied=repair_state['applied'],
+                execution_result=repair_state['execution_result'])
             try:
-                save_json(folder / 'repair.json', audit_document([repair_attempt], proposals))
+                save_json(folder / 'repair.json',
+                          audit_document(repair_state['attempts'], repair_state['proposals'], application))
             except OSError:
                 pass
         report['elapsed_seconds'] = round(time.monotonic() - started, 2)

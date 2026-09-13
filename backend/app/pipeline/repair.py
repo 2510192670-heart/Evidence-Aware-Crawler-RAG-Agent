@@ -1,13 +1,15 @@
 """Bounded repair: eligibility policy, deterministic proposals and audit.
 
 M4.4.1 established the contract, the fail-closed policy and the audit record.
-M4.4.2 adds deterministic candidate generation: for an eligible failure the
+M4.4.2 added deterministic candidate generation: for an eligible failure the
 module may build a *candidate* plan from the already-observed evidence and run
-it through the same pre-flight validator the executor uses.
+it through the same pre-flight validator the executor uses. M4.4.3 lets a
+candidate affect execution, but only for the explicit apply allowlist and only
+through a bounded driver outside this module.
 
-This module still performs no repair. It never mutates the original plan, never
-retries execution, never re-observes the target and never calls the model. A
-proposal is evidence, not an action.
+This module itself performs no repair and does no I/O. It never mutates the
+original plan, never retries execution, never re-observes the target and never
+calls the model. It decides, proposes and reports; the caller executes.
 
 Policy is fail closed:
 
@@ -31,14 +33,18 @@ from enum import Enum
 from .contracts import SENSITIVE, plan_hash, validate_plan
 from .errors import Category, classify
 
-__all__ = ['MAX_CANDIDATE_MEMBERS', 'MAX_REPAIR_ATTEMPTS', 'PRE_COLLECTION_PHASES',
-           'ProposalOutcome', 'ProposalReason', 'RepairAttempt', 'RepairContext',
-           'RepairDecision', 'RepairOutcome', 'RepairPolicyChecker', 'RepairProposal',
-           'RepairProposer', 'RepairReason', 'audit_document', 'audit_failure', 'build_attempt',
-           'is_collection_started', 'propose']
+__all__ = ['APPLICABLE_ERROR_CODES', 'MAX_CANDIDATE_MEMBERS', 'MAX_REPAIR_ATTEMPTS',
+           'PRE_COLLECTION_PHASES', 'ProposalOutcome', 'ProposalReason', 'RepairApplication',
+           'RepairAttempt', 'RepairContext', 'RepairDecision', 'RepairOutcome',
+           'RepairPolicyChecker', 'RepairProposal', 'RepairProposer', 'RepairReason',
+           'audit_document', 'audit_failure', 'build_attempt', 'evaluate_failure',
+           'is_applicable', 'is_collection_started', 'propose']
 
 # Bounded repair: at most one plan repair per task. M4.4.1 never spends it.
 MAX_REPAIR_ATTEMPTS = 1
+# 自动应用比生成候选更严格：M4.4.3 只允许 pointer_not_found 影响执行，其余候选（如
+# page_location_mismatch）仍只生成、不应用。
+APPLICABLE_ERROR_CODES = frozenset({'pointer_not_found'})
 # 观察/分析阶段失败时尚无采集产物，确定性修复才是安全的；其余阶段（含 unknown）一律
 # 视为可能已开始采集，fail closed。
 PRE_COLLECTION_PHASES = frozenset({'observing', 'analyzing'})
@@ -213,6 +219,40 @@ class RepairProposal:
         }
 
 
+@dataclass(frozen=True)
+class RepairApplication:
+    """M4.4.3: what a bounded repair actually did to execution (audit only).
+
+    The candidate plan itself is never persisted -- only its hash -- so this
+    record carries lineage, not response structure. ``applied`` means the
+    candidate was adopted for execution; ``execution_result`` records how that
+    bounded execution ended.
+    """
+
+    original_plan_hash: str | None = None
+    candidate_plan_hash: str | None = None
+    applied: bool = False
+    execution_result: dict | None = None
+
+    def __post_init__(self):
+        for value in (self.original_plan_hash, self.candidate_plan_hash):
+            if value is not None and not isinstance(value, str):
+                raise ValueError('invalid_repair_plan_hash')
+        if type(self.applied) is not bool:
+            raise ValueError('invalid_repair_applied')
+        if self.applied and not self.candidate_plan_hash:
+            raise ValueError('applied_repair_requires_candidate_hash')
+        if self.execution_result is not None and not isinstance(self.execution_result, dict):
+            raise ValueError('invalid_repair_execution_result')
+
+    def to_dict(self) -> dict:
+        """JSON-safe representation with a stable key order."""
+        return {'original_plan_hash': self.original_plan_hash,
+                'candidate_plan_hash': self.candidate_plan_hash,
+                'applied': self.applied,
+                'execution_result': self.execution_result}
+
+
 def is_collection_started(classification) -> bool:
     """Conservative phase-derived estimate of whether collection may have begun.
 
@@ -362,31 +402,53 @@ def _rejected_proposal(original_plan_hash) -> RepairProposal:
                           None, ProposalOutcome.REJECTED.value)
 
 
+def is_applicable(error, proposal) -> bool:
+    """Whether a candidate may affect execution; stricter than proposing one.
+
+    Only failures on the explicit apply allowlist, with a validated candidate,
+    can be applied. Everything else -- including repairable codes such as
+    ``page_location_mismatch`` -- stays proposal-only.
+    """
+    return (proposal is not None
+            and proposal.outcome == ProposalOutcome.PROPOSED.value
+            and _error_code(error) in APPLICABLE_ERROR_CODES)
+
+
 class RepairProposer:
     """Deterministic candidate generation; never re-executes, re-observes or calls a model."""
 
     def __init__(self, generators=None):
         self.generators = dict(DEFAULT_GENERATORS if generators is None else generators)
 
-    def propose(self, error, plan, record) -> RepairProposal | None:
+    def evaluate(self, error, plan, record):
+        """Return ``(candidate_plan, proposal)``; never executes anything.
+
+        ``candidate_plan`` is only returned when a rule produced a candidate that
+        passed ``validate_plan``. Otherwise it is ``None`` while ``proposal``
+        still records why.
+        """
         if plan is None:
-            return None
+            return None, None
         original = plan_hash(plan)
         generator = self.generators.get(_error_code(error))
         if record is None or generator is None:
-            return _rejected_proposal(original)
+            return None, _rejected_proposal(original)
         generated = generator(error, plan, record)
         if generated is None:
-            return _rejected_proposal(original)
+            return None, _rejected_proposal(original)
         candidate, modified_fields, reason = generated
         candidate_hash = plan_hash(candidate)
         if candidate_hash == original:
             # 候选与原计划逐字节一致，不构成修复。
-            return _rejected_proposal(original)
+            return None, _rejected_proposal(original)
         valid, validation_result = _validate_candidate(candidate, record)
-        return RepairProposal(original, candidate_hash, tuple(modified_fields), reason.value,
-                              validation_result,
-                              ProposalOutcome.PROPOSED.value if valid else ProposalOutcome.REJECTED.value)
+        proposal = RepairProposal(original, candidate_hash, tuple(modified_fields), reason.value,
+                                  validation_result,
+                                  ProposalOutcome.PROPOSED.value if valid else ProposalOutcome.REJECTED.value)
+        return (candidate if valid else None), proposal
+
+    def propose(self, error, plan, record) -> RepairProposal | None:
+        return self.evaluate(error, plan, record)[1]
 
 
 def propose(error, plan, record) -> RepairProposal | None:
@@ -419,27 +481,40 @@ def build_attempt(error, context: RepairContext | None = None, *, attempt: int |
     )
 
 
-def audit_failure(error, context: RepairContext | None = None, plan=None, record=None, *,
-                  checker: RepairPolicyChecker | None = None,
-                  proposer: RepairProposer | None = None):
-    """Full audit of one failure: eligibility, deterministic proposal, attempt.
+def evaluate_failure(error, context: RepairContext | None = None, plan=None, record=None, *,
+                     checker: RepairPolicyChecker | None = None,
+                     proposer: RepairProposer | None = None):
+    """Full audit of one failure: eligibility, deterministic candidate, attempt.
 
     Proposals are only ever generated for eligible failures, so a forbidden
-    category can never yield a candidate. Returns ``(attempt, proposal)`` where
-    ``proposal`` is ``None`` when nothing was proposed.
+    category can never yield a candidate. Returns ``(attempt, proposal,
+    candidate_plan)``; ``candidate_plan`` is ``None`` unless a validated
+    candidate exists, and the caller decides whether it may be applied.
     """
     context = context if context is not None else RepairContext()
     checker = checker or RepairPolicyChecker()
     decision = checker.check(error, context)
     proposal = None
+    candidate = None
     if decision.eligible and plan is not None:
-        proposal = (proposer or RepairProposer()).propose(error, plan, record)
+        candidate, proposal = (proposer or RepairProposer()).evaluate(error, plan, record)
     attempt = build_attempt(error, context, checker=checker, decision=decision, proposal=proposal)
+    return attempt, proposal, candidate
+
+
+def audit_failure(error, context: RepairContext | None = None, plan=None, record=None, *,
+                  checker: RepairPolicyChecker | None = None,
+                  proposer: RepairProposer | None = None):
+    """Audit one failure without materializing a candidate. Returns ``(attempt, proposal)``."""
+    attempt, proposal, _ = evaluate_failure(error, context, plan, record,
+                                            checker=checker, proposer=proposer)
     return attempt, proposal
 
 
-def audit_document(attempts, proposals=()) -> dict:
-    """Serialize repair attempts and proposals as the ``repair.json`` payload."""
-    return {'schema_version': 1,
-            'attempts': [attempt.to_dict() for attempt in attempts],
-            'proposals': [proposal.to_dict() for proposal in proposals]}
+def audit_document(attempts, proposals=(), application: RepairApplication | None = None) -> dict:
+    """Serialize repair attempts, proposals and the execution application."""
+    document = {'schema_version': 1,
+                'attempts': [attempt.to_dict() for attempt in attempts],
+                'proposals': [proposal.to_dict() for proposal in proposals]}
+    document.update((application or RepairApplication()).to_dict())
+    return document

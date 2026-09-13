@@ -14,12 +14,13 @@ from playwright.async_api import Error as BrowserError
 from ..llm.config import CloudConfig
 from ..llm.gateway import CloudGateway, GatewayError
 from ..rag.retrieval import retrieve
-from .contracts import ExtractionPlan, cloud_summary, local_origin
+from .contracts import ExtractionPlan, cloud_summary, local_origin, plan_hash
 from .errors import PipelineError, classify
 from .execution import execute_plan
 from .export import export_collector
 from .observe import observe
 from .curl_import import observe_imported
+from .repair import RepairContext, audit_document, audit_failure
 
 
 def save_json(path: Path, value):
@@ -47,12 +48,29 @@ async def run_task(args, config, *, task_id=None, output_root=None, on_stage=Non
     folder.mkdir(parents=True)
     started = time.monotonic()
     gateway = CloudGateway(config)
-    report = {'task_id': task_id, 'status': 'running', 'model': config.model}
+    # repair_* 是本里程碑新增的稳定契约；M4.4.1 不执行修复，因此始终为未尝试。
+    report = {'task_id': task_id, 'status': 'running', 'model': config.model,
+              'repair_attempted': False, 'repair_count': 0, 'repair_outcome': None}
+    plan = None
+    observations = []
+    repair_attempt = None
+    repair_proposal = None
     async def stage(name, message):
         if on_stage is not None:
             await on_stage(name)
         if not quiet:
             print(message, flush=True)
+
+    def record_failure(error):
+        """记录失败分类，并审计 repair 策略判定与确定性候选；不执行任何修复。"""
+        nonlocal repair_attempt, repair_proposal
+        report.update(status='failed', **failure_fields(error))
+        context = RepairContext(original_plan_hash=plan_hash(plan) if plan is not None else None)
+        record = next((item for item in observations
+                       if plan is not None and item.request_id == plan.request_id), None)
+        repair_attempt, repair_proposal = audit_failure(error, context, plan, record)
+        report['repair_outcome'] = repair_attempt.outcome
+
     try:
         async with asyncio.timeout(180):
             await stage('observing', '1/3 观察本机页面和翻页请求…')
@@ -106,19 +124,26 @@ async def run_task(args, config, *, task_id=None, output_root=None, on_stage=Non
             report['collector_execution_success'] = False
             report['collector_matches_internal_result'] = False
     except GatewayError as error:
-        report.update(status='failed', **failure_fields(error))
+        record_failure(error)
     except PipelineError as error:
         # 必须排在 ValueError 之前：PipelineError 是 ValueError 子类，顺序颠倒会丢失分类。
-        report.update(status='failed', **failure_fields(error))
+        record_failure(error)
     except (ValueError, httpx.HTTPError, BrowserError, TimeoutError, OSError) as error:
         # 不把网络异常 URL、验证错误输入或供应商正文写入报告。
-        report.update(status='failed', **failure_fields(error))
+        record_failure(error)
     except asyncio.CancelledError:
         report.update(status='cancelled', error='cancelled')
         raise
     except Exception as error:
-        report.update(status='failed', **failure_fields(error))
+        record_failure(error)
     finally:
+        # 审计产物是补充证据：写入失败不应改变已确定的失败分类。
+        if repair_attempt is not None:
+            proposals = [repair_proposal] if repair_proposal is not None else []
+            try:
+                save_json(folder / 'repair.json', audit_document([repair_attempt], proposals))
+            except OSError:
+                pass
         report['elapsed_seconds'] = round(time.monotonic() - started, 2)
         report['model_calls'] = gateway.calls
         report['usage'] = [asdict(u) for u in gateway.usage_history]

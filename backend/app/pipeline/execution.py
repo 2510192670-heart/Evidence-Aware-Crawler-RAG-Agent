@@ -3,8 +3,7 @@ import math
 
 import httpx
 
-from .contracts import (ExtractionPlan, Observation, SENSITIVE, has_sensitive_keys, local_origin, pointer,
-                        validate_pagination)
+from .contracts import ExtractionPlan, Observation, pointer, validate_plan
 from .errors import PipelineError
 
 
@@ -15,27 +14,7 @@ async def execute_plan(client: httpx.AsyncClient, plan: ExtractionPlan,
     record = next((r for r in observations if r.request_id == plan.request_id), None)
     if record is None:
         raise ValueError('unknown_request_id')
-    local_origin(record.url)
-    if any(SENSITIVE.search(k) for k in record.query):
-        raise ValueError('sensitive_request_not_supported')
-    if has_sensitive_keys(record.request_body):
-        raise ValueError('sensitive_request_not_supported')
-    validate_pagination(plan, record)
-    if plan.unique_key not in plan.fields:
-        raise ValueError('unique_key_not_in_fields')
-    for name, path in plan.fields.items():
-        if not path.startswith('/') or SENSITIVE.search(name) or SENSITIVE.search(path):
-            raise ValueError('invalid_or_sensitive_field')
-    sample = pointer(record.body, plan.items_pointer)
-    if not isinstance(sample, list) or not sample:
-        raise ValueError('no_list_sample')
-    sample_types = {name: type(pointer(sample[0], path)) for name, path in plan.fields.items()}
-    if plan.total_pointer is not None:
-        if type(pointer(record.body, plan.total_pointer)) is not int:
-            raise ValueError('invalid_total_pointer')
-    if plan.has_next_pointer is not None:
-        if type(pointer(record.body, plan.has_next_pointer)) is not bool:
-            raise ValueError('invalid_has_next_pointer')
+    sample_types = validate_plan(plan, record)
 
     collected = []
     seen = set()

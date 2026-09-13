@@ -201,6 +201,8 @@ class Classification:
     category: Category
     repairable: bool
     retryable: bool
+    # 失败所属阶段由注册表决定；未分类失败没有阶段，按 unknown 处理（fail closed）。
+    phase: str = 'unknown'
 
 
 def classify(error):
@@ -215,4 +217,4 @@ def classify(error):
     spec = SPECS.get(code)
     if spec is None:
         return Classification(code, Category.UNCLASSIFIED, False, False)
-    return Classification(code, spec.category, spec.repairable, spec.retryable)
+    return Classification(code, spec.category, spec.repairable, spec.retryable, spec.phase)

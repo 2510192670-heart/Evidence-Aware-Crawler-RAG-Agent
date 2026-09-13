@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError
 TERMINAL = {'succeeded', 'failed', 'cancelled', 'interrupted'}
 STAGES = ['created', 'observing', 'analyzing', 'executing', 'verifying']
 ARTIFACT_NAMES = {'evidence.json', 'cloud_payload.json', 'plan.json', 'result.json', 'report.json', 'report.md', 'retrieval.json',
-                  'collector.py', 'collector_result.json', 'collector_verification.json'}
+                  'collector.py', 'collector_result.json', 'collector_verification.json', 'repair.json'}
 
 
 class BusyError(RuntimeError):

@@ -134,6 +134,10 @@ The POST capability is intentionally limited.
 
 ## POST Safety Boundary
 
+POST support is limited to observed JSON page-number pagination
+on controlled loopback targets. The system does not deterministically detect
+whether an endpoint mutates data.
+
 Allowed:
 
 - loopback targets
@@ -141,12 +145,12 @@ Allowed:
 - top-level JSON object body
 - page-number pagination
 
-Forbidden:
+Not supported:
 
 - arbitrary POST
 - form bodies
 - multipart bodies
-- mutation endpoints
+- mutation workflows
 - authentication replay
 - cookie/token forwarding
 
@@ -217,6 +221,7 @@ GET and POST collectors use separate template paths.
 Additional requirements:
 
 - GET collector behavior is frozen
+- The freeze covers execution behavior and result contracts, not identical source bytes
 - POST collector must not modify GET behavior
 - exported collector results must be verified against internal executor results
 - changes to collector templates require explicit review
@@ -422,6 +427,22 @@ without explicit approval.
 Prefer adding new artifacts.
 
 ---
+# Collector Equivalence Rules
+
+Exported collectors are compatibility artifacts.
+
+For supported collection modes:
+
+- GET and POST collector execution must produce equivalent results to internal execution.
+- URL, query parameters, method, and observed request body are evidence-derived and immutable except page mutation.
+- Verification must compare:
+  - records
+  - pages
+  - completeness
+  - schema
+  - uniqueness
+
+A collector that executes successfully but changes request semantics is considered failed.
 
 # LLM Budget
 
@@ -567,13 +588,13 @@ Implemented:
 
 Current milestone:
 
-## M4.4
+## M4.3.5 Freeze Preparation
 
-Bounded repair
+Validate export/security hardening and prepare the M4.3 freeze.
 
-Goal:
+M4.4 bounded repair will begin after M4.3 freeze validation is complete.
 
-Controlled error-driven plan repair with deterministic validation.
+Its goal is controlled error-driven plan repair with deterministic validation.
 
 ---
 

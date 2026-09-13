@@ -279,7 +279,7 @@ def test_post_collector_uses_its_own_template_and_keeps_get_output_stable():
     get_source = build_collector_source(plan(), record(), 3)
     assert '"query"' in get_source and 'request_body' not in get_source
     post_source = build_collector_source(post_plan(), post_record(), 3)
-    assert '"request_body"' in post_source and '"query"' not in post_source
+    assert '"request_body"' in post_source and '"query"' in post_source
     assert get_source != post_source
 
 

@@ -67,7 +67,8 @@ class Observation(BaseModel):
 def has_sensitive_keys(value, depth=0) -> bool:
     """递归检查键名是否敏感；深度受限，避免不可信结构被无限展开。"""
     if depth > 6:
-        return False
+        # 未扫描的结构不能被判定为安全。
+        return True
     if isinstance(value, dict):
         return any(SENSITIVE.search(key) or has_sensitive_keys(child, depth + 1)
                    for key, child in value.items())

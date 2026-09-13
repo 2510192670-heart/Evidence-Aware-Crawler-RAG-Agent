@@ -3,7 +3,7 @@ import math
 
 import httpx
 
-from .contracts import (ExtractionPlan, Observation, SENSITIVE, local_origin, pointer,
+from .contracts import (ExtractionPlan, Observation, SENSITIVE, has_sensitive_keys, local_origin, pointer,
                         validate_pagination)
 from .errors import PipelineError
 
@@ -17,6 +17,8 @@ async def execute_plan(client: httpx.AsyncClient, plan: ExtractionPlan,
         raise ValueError('unknown_request_id')
     local_origin(record.url)
     if any(SENSITIVE.search(k) for k in record.query):
+        raise ValueError('sensitive_request_not_supported')
+    if has_sensitive_keys(record.request_body):
         raise ValueError('sensitive_request_not_supported')
     validate_pagination(plan, record)
     if plan.unique_key not in plan.fields:

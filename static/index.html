@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>商品分页学习站</title>
+  <link rel="icon" href="data:,">
+  <style>
+    * { box-sizing:border-box; }
+    body { margin:0; background:#f4f6f9; color:#17253b; font:16px/1.6 system-ui,sans-serif; }
+    main { max-width:900px; margin:48px auto; padding:0 22px; }
+    .eyebrow { color:#466b9d; font-size:13px; letter-spacing:2px; }
+    h1 { margin:8px 0; font-size:32px; } p { color:#536177; }
+    .panel { background:white; border:1px solid #dce3ed; border-radius:16px; overflow:hidden; }
+    .request { padding:18px 22px; background:#eaf0f8; overflow-wrap:anywhere; }
+    code { font-size:14px; }
+    table { width:100%; border-collapse:collapse; }
+    th,td { padding:12px 22px; text-align:left; border-bottom:1px solid #edf0f5; }
+    th { color:#526078; font-size:13px; } td:last-child,th:last-child { text-align:right; }
+    .pager { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:20px 22px; }
+    .buttons { display:flex; gap:8px; }
+    button { border:1px solid #bdcadb; border-radius:8px; padding:9px 14px; background:white; color:#193653; cursor:pointer; font:inherit; }
+    button:hover:not(:disabled) { background:#eaf0f8; }
+    button:disabled { opacity:.45; cursor:default; }
+    button:focus-visible { outline:3px solid #6497dd; outline-offset:2px; }
+    #error { color:#a32626; padding:0 22px; }
+    .hint { font-size:14px; }
+    @media(max-width:500px) { main { margin:24px auto; padding:0 12px; } h1 { font-size:26px; } th,td { padding:11px 12px; } .pager { flex-wrap:wrap; padding:16px 12px; } }
+  </style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">WEB DATA LAB · 01</div>
+  <h1>商品分页学习站</h1>
+  <p>30 件示例商品。翻一页，观察一次真实的数据请求。</p>
+  <section class="panel" aria-label="商品列表">
+    <div class="request">当前请求<br><code id="request">准备请求…</code></div>
+    <table><thead><tr><th scope="col">ID</th><th scope="col">商品名称</th><th scope="col">价格</th></tr></thead><tbody id="products"></tbody></table>
+    <p id="error" role="alert" hidden></p>
+    <div class="pager">
+      <span id="status" role="status" aria-live="polite">加载中…</span>
+      <div class="buttons">
+        <button id="previous" disabled>上一页</button>
+        <button id="next" disabled>下一页</button>
+        <button id="retry" hidden>重试</button>
+      </div>
+    </div>
+  </section>
+  <p class="hint">学习提示：按 F12 打开 Network，选择 Fetch/XHR，再点击“下一页”。比较请求中的 page 和响应中的 items。</p>
+</main>
+<script>
+  const rows = document.getElementById('products');
+  const status = document.getElementById('status');
+  const previous = document.getElementById('previous');
+  const next = document.getElementById('next');
+  const retry = document.getElementById('retry');
+  const error = document.getElementById('error');
+  let currentPage = 0;
+  let hasNext = false;
+  let failedPage = 1;
+
+  async function loadPage(page) {
+    previous.disabled = next.disabled = true;
+    retry.hidden = true;
+    error.hidden = true;
+    status.textContent = '加载中…';
+    const url = `/api/products?page=${page}&page_size=10`;
+    document.getElementById('request').textContent = `GET ${url}`;
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      const fragment = document.createDocumentFragment();
+      for (const item of data.items) {
+        const row = document.createElement('tr');
+        for (const value of [item.id, item.name, `¥${(item.price_fen / 100).toFixed(2)}`]) {
+          const cell = document.createElement('td');
+          cell.textContent = value;
+          row.append(cell);
+        }
+        fragment.append(row);
+      }
+      rows.replaceChildren(fragment);
+      currentPage = data.page;
+      hasNext = data.has_next;
+      status.textContent = `第 ${currentPage} / ${Math.max(1, Math.ceil(data.total / data.page_size))} 页 · 共 ${data.total} 件`;
+    } catch (failure) {
+      failedPage = page;
+      error.textContent = `加载失败：${failure.message}。请确认服务仍在运行。`;
+      error.hidden = false;
+      retry.hidden = false;
+      status.textContent = currentPage ? `仍显示第 ${currentPage} 页` : '暂无数据';
+    } finally {
+      previous.disabled = currentPage <= 1;
+      next.disabled = !hasNext;
+    }
+  }
+  previous.addEventListener('click', () => loadPage(currentPage - 1));
+  next.addEventListener('click', () => loadPage(currentPage + 1));
+  retry.addEventListener('click', () => loadPage(failedPage));
+  loadPage(1);
+</script>
+</body>
+</html>

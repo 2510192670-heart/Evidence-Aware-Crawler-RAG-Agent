@@ -18,14 +18,24 @@
 curl 'http://127.0.0.1:8000/api/products?page=1&page_size=10' -H 'Accept: application/json'
 ```
 
+POST JSON 分页同样可导入（页码成员位于请求体顶层）：
+
+```bash
+curl 'http://127.0.0.1:8100/catalog/v1/query' -X POST \
+  -H 'Content-Type: application/json' \
+  --data-raw '{"page": 1, "page_size": 10}'
+```
+
 点击“解析并预览”。成功后显示 URL 与参数，页面地址和翻页按钮禁用。再点击“创建任务”，直接读取接口样本，交给现有模型计划、RAG 和分页执行流程。提取字段与页数仍使用表单设置。修改 cURL 会使预览失效；清除导入恢复浏览器观察模式。
 
 解析接口 POST /api/v1/import/curl 接收 {"text":"curl ..."}，只解析文本，不发起目标请求，不调用模型，不创建任务。原始 cURL 不持久化；创建任务时仅持久化通过验证的 imported_url。不要在 URL 的普通字段中放置私密数据，按敏感字段名过滤不能识别所有秘密。
 
-当前支持：单个本机 HTTP URL、GET、-X/--request、-H/--header、--url、--compressed、Bash 反斜线续行。只允许 Accept: application/json 或 */*，执行器统一请求 JSON。其他头会阻止导入，不能静默丢弃。POST、数据体、Cookie、Authorization、文件读取、输出文件、重定向选项、多个 URL 和 shell 表达式均不支持。PowerShell/CMD 专有引用语法不支持。上限 16 KiB；任务 URL 上限 512 字符。
+当前支持：单个本机 HTTP URL、GET、POST(JSON)、-X/--request、-H/--header、--url、--compressed、-d/--data/--data-raw/--data-binary、Bash 反斜线续行。除 Accept: application/json 或 */* 与 Content-Type: application/json 之外的请求头会阻止导入，不能静默丢弃。POST 必须是顶层 JSON 对象请求体，并显式声明 Content-Type: application/json；表单、multipart、非 JSON 请求体、敏感键名、@文件、Cookie、Authorization、输出文件、重定向选项、多个 URL 和 shell 表达式均不支持。PowerShell/CMD 专有引用语法不支持。上限 16 KiB；任务 URL 上限 512 字符。
 
 模型仍只收到响应结构摘要，不收到 cURL 原文。报告 source=curl_import 标识来源。此模块未调用 spidertools.cn，也没有执行 shell 命令。
 
-验证：100 项 Python 测试通过，包括网关连接故障重试、解析、阻止不支持输入、敏感内容不回显、无密钥预览、预览不创建任务、模拟 HTTP 接口样本采集。TypeScript 与 Vite 构建通过。
+POST 成功任务同样会导出独立 collector.py：POST 使用单独模板（仅标准库、回环、application/json、只修改页码成员），输出 schema 与 GET 采集器一致。
+
+验证：245 项 Python 测试通过，包括网关连接故障重试、GET/POST cURL 解析、阻止不支持输入、敏感内容不回显、无密钥预览、预览不创建任务、模拟 HTTP 接口样本采集，以及 S2 POST JSON 内部执行与导出 collector 的逐项等值比对。TypeScript 与 Vite 构建通过。
 
 限制：真实浏览器“导入—创建—下载”已于 2026-09-13 复测通过。测试站若未运行，按 CONSOLE.md 启动 8000 端口服务后可手动试用。

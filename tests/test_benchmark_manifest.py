@@ -89,10 +89,16 @@ def test_each_task_declares_a_complete_schema():
             assert expected['record_count'] > 0 and expected['pages'] >= 1, task['id']
 
 
-def test_post_tasks_are_declared_unsupported_until_m4_3():
+def test_post_tasks_are_declared_supported_after_m4_3():
+    # M4.3.3 完成后 S2 POST JSON 进入能力边界：不再保留 unsupported_until。
     post_tasks = [task for task in TASKS if task['solution']['method'] == 'POST']
     assert post_tasks
-    assert all(task['expected']['supported'] is False for task in post_tasks)
+    for task in post_tasks:
+        expected = task['expected']
+        assert expected['supported'] is True, task['id']
+        assert 'unsupported_until' not in expected, task['id']
+        assert expected['should_fail'] is False, task['id']
+        assert expected['completeness'] == 'complete', task['id']
 
 
 # --- dev / held-out isolation -------------------------------------------
@@ -141,10 +147,11 @@ def test_entry_urls_are_literal_loopback_and_served():
 def test_solution_pointers_resolve_on_the_first_page():
     for task in TASKS:
         solution = task['solution']
-        if solution['method'] == 'POST':
-            continue
         params = {solution['pagination_parameter']: 1, solution['page_size_parameter']: task['page_size']}
-        body = client.get(solution['request_path'], params=params).json()
+        if solution['method'] == 'POST':
+            body = client.post(solution['request_path'], json=params).json()
+        else:
+            body = client.get(solution['request_path'], params=params).json()
         items = pointer(body, solution['items_pointer'])
         assert isinstance(items, list) and items, task['id']
         assert len(items) <= task['page_size'], task['id']

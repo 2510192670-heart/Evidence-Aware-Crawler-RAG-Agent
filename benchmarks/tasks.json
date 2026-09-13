@@ -128,8 +128,8 @@
         "unique_key": "sku"
       },
       "expected": {
-        "supported": false,
-        "unsupported_until": "M4.3",
+        "supported": true,
+        "should_fail": false,
         "record_count": 20,
         "pages": 2,
         "completeness": "complete"
@@ -154,8 +154,8 @@
         "unique_key": "code"
       },
       "expected": {
-        "supported": false,
-        "unsupported_until": "M4.3",
+        "supported": true,
+        "should_fail": false,
         "record_count": 30,
         "pages": 3,
         "completeness": "complete"
@@ -180,8 +180,8 @@
         "unique_key": "article_no"
       },
       "expected": {
-        "supported": false,
-        "unsupported_until": "M4.3",
+        "supported": true,
+        "should_fail": false,
         "record_count": 24,
         "pages": 3,
         "completeness": "complete"
@@ -206,8 +206,8 @@
         "unique_key": "entry_id"
       },
       "expected": {
-        "supported": false,
-        "unsupported_until": "M4.3",
+        "supported": true,
+        "should_fail": false,
         "record_count": 12,
         "pages": 2,
         "completeness": "complete"

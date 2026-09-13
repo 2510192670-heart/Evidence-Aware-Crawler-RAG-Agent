@@ -200,8 +200,12 @@ def test_post_fixtures_are_served_and_the_contract_stays_strict(fixture_server):
         ExtractionPlan(request_id='r', items_pointer='/items', fields={'sku': '/sku'}, unique_key='sku',
                        page_parameter='page', has_next_pointer='/has_next', total_pointer='/total',
                        location='json_body')
-    # cURL 导入尚未支持 POST JSON（M4.3.3）。
+    # cURL 导入已支持 POST JSON（M4.3.3）：仍缺少 JSON 请求体的 POST 会被拒绝，
+    # 携带 JSON 对象请求体并声明 application/json 的 POST 才可执行。
     assert parse_curl('curl http://127.0.0.1:8100/catalog/v1/query -X POST')['executable'] is False
+    assert parse_curl("curl http://127.0.0.1:8100/catalog/v1/query -X POST "
+                      "-H 'Content-Type: application/json' "
+                      "--data '{\"page\": 1, \"page_size\": 10}'")['executable'] is True
 
 
 def test_executor_only_issues_get_requests():

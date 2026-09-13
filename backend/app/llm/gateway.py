@@ -38,6 +38,10 @@ class ModelResult:
 class CloudGateway:
     """每个任务新建一个实例；预算不在不同任务之间共享。"""
 
+    # 只有短暂连接故障允许重试；鉴权、限流、服务端错误和读写/池超时不重试。
+    RETRYABLE = frozenset({'connect_timeout', 'network_error'})
+    MAX_ATTEMPTS = 2
+
     def __init__(self, config: CloudConfig, transport: httpx.AsyncBaseTransport | None = None):
         self.config = config
         self.transport = transport
@@ -79,6 +83,46 @@ class CloudGateway:
         if cfg.thinking is not None:
             body['thinking'] = {'type': cfg.thinking}
 
+        started = time.monotonic()
+        raw = usage_index = None
+        for attempt in range(1, self.MAX_ATTEMPTS + 1):
+            try:
+                raw, usage_index = await self._send(body)
+                break
+            except GatewayError as error:
+                # 仅短暂连接故障重试一次；重试同样占用一次调用预算。
+                if error.code not in self.RETRYABLE or attempt == self.MAX_ATTEMPTS:
+                    raise
+
+        try:
+            envelope = json.loads(raw)
+            if not isinstance(envelope, dict):
+                raise ValueError()
+            source_usage = envelope.get('usage') or {}
+            if not isinstance(source_usage, dict):
+                source_usage = {}
+
+            def count(name):
+                value = source_usage.get(name)
+                return value if type(value) is int and value >= 0 else None
+
+            usage = TokenUsage(count('prompt_tokens'), count('completion_tokens'),
+                               count('prompt_cache_hit_tokens'), count('prompt_cache_miss_tokens'))
+            self.usage_history[usage_index] = usage
+            choice = envelope['choices'][0]
+            if choice.get('finish_reason') != 'stop':
+                raise GatewayError('output_incomplete')
+            content = choice['message']['content']
+            if not isinstance(content, str) or not content.strip():
+                raise ValueError()
+            data = output_schema.model_validate_json(content, strict=True)
+        except (ValueError, TypeError, KeyError, IndexError, AttributeError, ValidationError):
+            raise GatewayError('invalid_output') from None
+        return ModelResult(data, usage, cfg.model, time.monotonic() - started)
+
+    async def _send(self, body):
+        """发送一次请求并读取响应正文；每次尝试都占用一个调用预算槽。"""
+        cfg = self.config
         async with self._lock:
             if self.calls >= 4:
                 raise GatewayError('call_budget_exceeded')
@@ -86,7 +130,6 @@ class CloudGateway:
             usage_index = len(self.usage_history)
             self.usage_history.append(TokenUsage())
 
-        started = time.monotonic()
         try:
             # HTTPX 分段超时不等于请求总时限，因此外层使用 asyncio.timeout。
             async with asyncio.timeout(cfg.timeout_seconds):
@@ -120,29 +163,4 @@ class CloudGateway:
             raise GatewayError('timeout') from None
         except httpx.HTTPError:
             raise GatewayError('network_error') from None
-
-        try:
-            envelope = json.loads(raw)
-            if not isinstance(envelope, dict):
-                raise ValueError()
-            source_usage = envelope.get('usage') or {}
-            if not isinstance(source_usage, dict):
-                source_usage = {}
-
-            def count(name):
-                value = source_usage.get(name)
-                return value if type(value) is int and value >= 0 else None
-
-            usage = TokenUsage(count('prompt_tokens'), count('completion_tokens'),
-                               count('prompt_cache_hit_tokens'), count('prompt_cache_miss_tokens'))
-            self.usage_history[usage_index] = usage
-            choice = envelope['choices'][0]
-            if choice.get('finish_reason') != 'stop':
-                raise GatewayError('output_incomplete')
-            content = choice['message']['content']
-            if not isinstance(content, str) or not content.strip():
-                raise ValueError()
-            data = output_schema.model_validate_json(content, strict=True)
-        except (ValueError, TypeError, KeyError, IndexError, AttributeError, ValidationError):
-            raise GatewayError('invalid_output') from None
-        return ModelResult(data, usage, cfg.model, time.monotonic() - started)
+        return raw, usage_index

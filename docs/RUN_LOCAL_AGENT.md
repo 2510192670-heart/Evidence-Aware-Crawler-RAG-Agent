@@ -78,7 +78,7 @@ Set-Location E:\PaChongLLMragzuoping
 
 完整性：`complete` 表示符合接口声明的 total；`partial` 表示达到用户页数上限但还有下一页；`stop_condition_only` 表示接口无 total，只能确认满足停止条件。
 
-模型输出必须引用真实 request_id 和已观察的分页参数；字段路径采用 JSON Pointer，执行前在实际响应样本上验证。页面重定向不由执行器自动跟随。所有操作受 180 秒总时限控制，云模型不自动重试。
+模型输出必须引用真实 request_id 和已观察的分页参数；字段路径采用 JSON Pointer，执行前在实际响应样本上验证。页面重定向不由执行器自动跟随。所有操作受 180 秒总时限控制，云端仅在连接类短暂故障（connect_timeout / network_error）时重试一次。
 
 ## 5. 已完成的真实验证
 

@@ -2,7 +2,7 @@
 
 本地采集工具 + DeepSeek Flash API。已实现浏览器观察、采集计划与校验、BM25 案例检索、SQLite 任务管理、电脑端 Vue 控制台，以及本地 cURL 导入预览。
 
-入口：http://127.0.0.1:8002/console/ 。使用方式见 [控制台说明](docs/CONSOLE.md)、[cURL 导入](docs/CURL_IMPORT.md)、[版本控制](docs/VERSION_CONTROL.md)。当前支持本机 GET 页码分页；最新 cURL 实际闭环在云端调用阶段超时，尚未验收通过。
+入口：http://127.0.0.1:8002/console/ 。使用方式见 [控制台说明](docs/CONSOLE.md)、[cURL 导入](docs/CURL_IMPORT.md)、[版本控制](docs/VERSION_CONTROL.md)。当前支持本机 GET 页码分页；cURL 导入的“导入—创建—下载”真实闭环已于 2026-09-13 验收通过，100 项测试通过。
 
 下面保留早期学习阶段的记录，涉及“尚未实现”或测试数量的表述仅代表当时状态。
 
@@ -114,4 +114,4 @@ Set-Location E:\PaChongLLMragzuoping
 已接入可关闭的 BM25 案例检索，默认开启。使用方式与验证边界见 [本地 RAG 说明](docs/LOCAL_RAG.md)。API 创建任务传 `rag_enabled: false` 可关闭，任务产物新增 `retrieval.json`。Vue 控制台尚未实现。
 # 最新入口：电脑端控制台
 
-打开 http://127.0.0.1:8002/console/ ，直接创建任务、查看进度与历史、取消任务和下载结果。Vue 3 + TypeScript 控制台已接入真实 API；当前 80 项 Python 测试通过。见 [控制台操作与启动说明](docs/CONSOLE.md)。下方较早阶段的记录保留作开发过程参考。
+打开 http://127.0.0.1:8002/console/ ，直接创建任务、查看进度与历史、取消任务和下载结果。Vue 3 + TypeScript 控制台已接入真实 API；当前 100 项 Python 测试通过。见 [控制台操作与启动说明](docs/CONSOLE.md)。下方较早阶段的记录保留作开发过程参考。

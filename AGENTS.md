@@ -87,7 +87,7 @@ The current supported collection scope is intentionally restricted to:
 Currently unsupported:
 
 - public Internet targets
-- POST pagination
+- POST pagination other than JSON-body page-number pagination (see M4.3 POST JSON Capability Rules)
 - cursor pagination
 - offset pagination
 - authentication workflows
@@ -96,6 +96,60 @@ Currently unsupported:
 - distributed workers
 
 Do not silently expand these capabilities.
+
+---
+
+## M4.3 POST JSON Capability Rules
+
+### Supported Capabilities
+
+- GET query page-number pagination
+- POST JSON-body page-number pagination
+
+### POST Safety Boundary
+
+Allowed:
+
+- loopback targets
+- `application/json` content type
+- top-level JSON object body
+- page-number pagination
+
+Forbidden:
+
+- arbitrary POST
+- form / multipart bodies
+- mutation endpoints
+- authentication replay
+- cookie / token forwarding
+
+### Evidence-Driven Execution
+
+- the model cannot invent the request method
+- GET and POST cannot be converted into each other
+- execution may only mutate the page field
+
+### Collector Rules
+
+- generated collectors must be standalone
+- standard library only
+- no backend imports
+- GET collectors must remain backward compatible
+- POST collectors use a separate template path
+
+### Benchmark Rule
+
+A case may be marked `supported=true` only when it has all of:
+
+- observation
+- planning
+- execution
+- export
+- verification
+
+### Current Milestone
+
+M4.3.3: POST cURL import + deterministic collector export
 
 ---
 

@@ -2,7 +2,7 @@
 
 当前可以运行：Playwright 打开学习站并点击下一页 → 生成字段形状摘要 → DeepSeek Flash 生成计划 → 校验计划 → httpx 分页采集 → 保存数据、报告和确定性 collector.py；也可用 cURL 导入重放 GET 或同源 POST JSON 请求。
 
-本文描述独立 CLI。任务 API、数据库、Vue 控制台、BM25 案例 RAG 与确定性采集脚本导出均已实现，见 TASK_API.md；自动修正（M4.4）仍未完成。
+本文描述独立 CLI。任务 API、数据库、Vue 控制台、BM25 案例 RAG 与确定性采集脚本导出均已实现，见 TASK_API.md；有限错误类型的确定性边界修复（M4.4 bounded deterministic repair）也已实现，模型只负责 proposal，执行由 deterministic validation 控制，详见 M4.4_EVALUATION_REPORT.md。
 
 ## 准备
 
@@ -75,6 +75,7 @@ Set-Location E:\PaChongLLMragzuoping
 - `result.json`：成功采集的数据；部分采集也会保存，完整性见报告。
 - `collector.py`：由已验证计划与固定模板生成的独立采集脚本；`collector_result.json` 是它的运行结果，`collector_verification.json` 记录与内部结果的比对。
 - `report.json` / `report.md`：状态、条数、完整性、时间与用量；失败也生成报告。
+- `repair.json`：有界修复审计（attempts / proposals / application 与计划谱系哈希）；仅当本次任务发生过修复尝试时才生成，是增量产物，不改动 `plan.json` 等既有产物契约。
 
 云输入使用类型占位符，如 `<string>`、`<integer>`；不传商品名称值、本机 origin、Cookie 或认证头。保留字段名和短数字查询值是为了推断分页；这一策略针对自建测试站，不等于任意网站的通用隐私脱敏器。
 
@@ -136,4 +137,4 @@ M4.3.3 已完成 POST 的 cURL 导入、collector 导出与清单 capability 翻
 
 ## 8. 下一阶段
 
-任务状态/API、持久化、案例 RAG、Vue 控制台、cURL 导入（GET/POST）、确定性 collector 导出（GET/POST）、M4.1 多结构靶场与冻结评测清单、M4.2 错误分类基线、M4.3.1 POST 证据层、M4.3.2 POST 计划与执行、M4.3.3 POST cURL 导入与 collector 导出与清单翻转、M4.3.4 导入元数据贯通任务编排均已完成。下一步是 M4.4 受限自动修正（届时会按类别扩大错误码迁移范围）。公网目标策略另行设计，现有学习站继续作为回归基线。
+任务状态/API、持久化、案例 RAG、Vue 控制台、cURL 导入（GET/POST）、确定性 collector 导出（GET/POST）、M4.1 多结构靶场与冻结评测清单、M4.2 错误分类基线、M4.3.1 POST 证据层、M4.3.2 POST 计划与执行、M4.3.3 POST cURL 导入与 collector 导出与清单翻转、M4.3.4 导入元数据贯通任务编排、M4.3.5 安全加固与 M4.3 freeze，以及 M4.4 有界确定性修复均已完成。M4.4 只把 `pointer_not_found` 加入自动应用白名单，`page_location_mismatch` 仅生成 proposal，SECURITY / DATA_INTEGRITY / TRANSPORT / UNCLASSIFIED 一律拒绝；模型不参与执行决策，也没有第二次 LLM 调用或无限重试。M4.4 Final Freeze 已收口，M5 尚未开始。公网目标策略另行设计，现有学习站继续作为回归基线。

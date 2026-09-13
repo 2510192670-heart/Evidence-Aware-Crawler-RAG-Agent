@@ -585,16 +585,29 @@ Implemented:
 - imported metadata propagation
 - deterministic POST collector export
 
+## M4.3.5
+
+Security hardening and M4.3 freeze validation
+
+## M4.4
+
+Bounded deterministic repair
+
+Implemented:
+
+- deterministic error taxonomy
+- bounded repair audit
+- deterministic repair proposal
+- validated one-shot repair execution
+
+Repair boundary: `pointer_not_found` is automatically applied; `page_location_mismatch`
+is proposal-only; SECURITY, DATA_INTEGRITY, TRANSPORT and UNCLASSIFIED failures are rejected.
 
 Current milestone:
 
-## M4.3.5 Freeze Preparation
+## M4.4 Final Freeze
 
-Validate export/security hardening and prepare the M4.3 freeze.
-
-M4.4 bounded repair will begin after M4.3 freeze validation is complete.
-
-Its goal is controlled error-driven plan repair with deterministic validation.
+M4.4 Final Freeze is complete. M5 has not started.
 
 ---
 
@@ -629,3 +642,43 @@ Current status, diff summary, suggested commit message.
 Do not claim success only because code was written.
 
 Success requires verification.
+
+---
+
+# Current Milestone
+
+## M4.4 Final Freeze
+
+Completed:
+
+- deterministic error taxonomy
+- bounded repair audit
+- deterministic repair proposal
+- validated one-shot repair execution
+
+Repair boundary:
+
+Automatically applied:
+
+- pointer_not_found
+
+Proposal only:
+
+- page_location_mismatch
+
+Rejected:
+
+- SECURITY
+- DATA_INTEGRITY
+- TRANSPORT
+- UNCLASSIFIED
+
+Safety guarantees:
+
+- no second LLM call
+- no arbitrary code execution
+- no unlimited retry
+- no automatic security bypass
+- execution budget bounded
+
+M5 has not started.

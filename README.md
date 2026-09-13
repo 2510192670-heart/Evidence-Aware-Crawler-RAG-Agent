@@ -1,8 +1,8 @@
 # Web Data Agent
 
-本地采集工具 + DeepSeek Flash API。已实现浏览器观察、采集计划与校验、BM25 案例检索、SQLite 任务管理、电脑端 Vue 控制台、本地 cURL 导入预览（GET / 受限 POST JSON），以及确定性 collector 导出。
+本地采集工具 + DeepSeek Flash API。已实现浏览器观察、采集计划与校验、BM25 案例检索、SQLite 任务管理、电脑端 Vue 控制台、本地 cURL 导入预览（GET / 受限 POST JSON）、确定性 collector 导出，以及有限错误类型的确定性边界修复（bounded deterministic repair）。
 
-入口：http://127.0.0.1:8002/console/ 。使用方式见 [控制台说明](docs/CONSOLE.md)、[cURL 导入](docs/CURL_IMPORT.md)、[版本控制](docs/VERSION_CONTROL.md)。当前支持本机 GET query 页码分页与 POST JSON body 页码分页；cURL 导入支持 GET 与受限 POST(JSON)；成功任务会导出确定性 collector.py（GET 与 POST 各一套模板）。评测清单 S2（POST JSON）已标记 `supported`。当前 250 项 Python 测试通过。
+入口：http://127.0.0.1:8002/console/ 。使用方式见 [控制台说明](docs/CONSOLE.md)、[cURL 导入](docs/CURL_IMPORT.md)、[版本控制](docs/VERSION_CONTROL.md)。当前支持本机 GET query 页码分页与 POST JSON body 页码分页；cURL 导入支持 GET 与受限 POST(JSON)；成功任务会导出确定性 collector.py（GET 与 POST 各一套模板）。评测清单 S2（POST JSON）已标记 `supported`，评测基础与冻结数据集见 M4.1。有限错误类型的确定性边界修复（bounded deterministic repair）已落地：模型只提出修复 proposal，是否采纳与执行由 deterministic validation 控制，仅 `pointer_not_found` 会自动应用，`page_location_mismatch` 仅出 proposal，SECURITY / DATA_INTEGRITY / TRANSPORT / UNCLASSIFIED 一律拒绝。当前 313 项 Python 测试通过。
 
 下面保留早期学习阶段的记录，涉及“尚未实现”或测试数量的表述仅代表当时状态。
 
@@ -114,4 +114,4 @@ Set-Location E:\PaChongLLMragzuoping
 已接入可关闭的 BM25 案例检索，默认开启。使用方式与验证边界见 [本地 RAG 说明](docs/LOCAL_RAG.md)。API 创建任务传 `rag_enabled: false` 可关闭，任务产物新增 `retrieval.json`。
 # 最新入口：电脑端控制台
 
-打开 http://127.0.0.1:8002/console/ ，直接创建任务、查看进度与历史、取消任务和下载结果。Vue 3 + TypeScript 控制台已接入真实 API；当前 250 项 Python 测试通过。见 [控制台操作与启动说明](docs/CONSOLE.md)。上方较早阶段的记录保留作开发过程参考。
+打开 http://127.0.0.1:8002/console/ ，直接创建任务、查看进度与历史、取消任务和下载结果。Vue 3 + TypeScript 控制台已接入真实 API；当前 313 项 Python 测试通过。见 [控制台操作与启动说明](docs/CONSOLE.md)。上方较早阶段的记录保留作开发过程参考。

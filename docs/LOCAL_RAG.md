@@ -38,6 +38,34 @@ backend/app/rag/cases.json 是人工编写的 6 个教学案例，覆盖顶层�
 
 M5.1-C 提供确定性评估（tests/test_rag_evaluation.py）：在同一语料上对比 baseline BM25 与 BM25 + feature gate，只读冻结 benchmark，不改动案例库；评估集是仓库内小样本 fixture，不是 benchmark，结论不外推。
 
+## M5.2 Failure-aware Knowledge Retrieval
+
+M5.2 在 feature gate 之后追加一层确定性 failure-aware 排序，让案例从“文本相似样板”变为“结构化失败知识”。链路：
+
+```
+query / evidence
+      │
+      ▼
+    BM25
+      │
+      ▼
+ Feature Gate
+      │
+      ▼
+Failure-aware Ranking
+```
+
+职责划分：
+
+- `backend/app/rag/knowledge.py`：只读加载与 **schema validation**，并做 **repairability projection**（由 `errors.SPECS` + repair 只读策略常量确定性投影，案例只能声明、不能设定策略；不一致即 fail closed）。结构化知识只经 `knowledge.load()` 读取，不直接解析 JSON。
+- `backend/app/rag/retrieval.py`：负责 **`failure_match`** 与 **deterministic ranking**。把观测到的失败（错误码 / 类别 / 阶段）与案例 `failure_modes` 做闭集比较：exact code 加权、category / phase 不匹配降权、unknown 中性。BM25 仍是排序主体。
+
+安全边界：**SECURITY / DATA_INTEGRITY / TRANSPORT / UNCLASSIFIED** 这类受限失败下，不会推荐携带 `auto_applied` 知识的案例（直接过滤而非降权），因此**不会产生 auto repair**；`repair.py` 仍是可修复性的唯一权威。
+
+依赖边界：无 **embedding**、无 **vector database**、无 **reranker**、无 **LLM** 调用。默认冻结语料（v1）不含 `failure_modes`，该阶段停用，`retrieval.json` 不会追加 `case_schema_version` / `knowledge_gate`，输出与 M5.1 逐字段一致。
+
+确定性评估见 tests/test_rag_failure_evaluation.py（A/B/C 三组消融）与 [M5.2 评估报告](M5.2_EVALUATION_REPORT.md)；评估为小样本 fixture，不是 benchmark。
+
 案例库只从代码仓库固定路径加载，不接受网页内容或任务产物自动入库。修改案例需人工审查、更新 corpus_version，并重新测试；文件摘要可识别实际版本。当前小型库同步加载，后续扩大时再缓存或转数据库。
 
 ## 验证记录（2026-09-13）

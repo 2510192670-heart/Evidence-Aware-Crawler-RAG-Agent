@@ -114,6 +114,12 @@ Set-Location E:\PaChongLLMragzuoping
 已接入可关闭的 BM25 案例检索，默认开启。使用方式与验证边界见 [本地 RAG 说明](docs/LOCAL_RAG.md)。API 创建任务传 `rag_enabled: false` 可关闭，任务产物新增 `retrieval.json`。
 # 阶段更新：observation-aware 检索（M5.1）
 BM25 检索已叠加确定性 feature gate（M5.1）：先用 M5.1-A 从脱敏结构摘要中抽取闭集证据特征，再用 M5.1-B 做结构匹配过滤与轻量重排，BM25 仍是排序主体，不引入 embedding / 向量数据库 / reranker / 额外模型调用。`retrieval.json` 保持 legacy 字段（`enabled` / `algorithm` / `corpus_version` / `corpus_sha256` / `cases`）不变，仅 additive 追加 `feature_schema_version` / `query_features` / `gate`；关闭 RAG 时输出与旧契约完全一致。M5.1-C 提供 deterministic retrieval evaluation（baseline BM25 与 feature gate 的消融对照），不修改冻结 benchmark 与案例库。详见 [本地 RAG 说明](docs/LOCAL_RAG.md) 与 [AGENTS 里程碑](../AGENTS.md)。
+# 阶段更新：failure-aware knowledge retrieval（M5.2）
+M5.2 让 RAG 从“文本相似案例检索”演进为“结构化失败知识检索”。它引入：结构化 case knowledge（`scenario` / `failure_modes` / `repairability`）、确定性 failure-aware ranking、以及 repairability consistency 校验。链路为 `BM25 → Feature Gate → Failure-aware Ranking`，BM25 仍是排序主体。
+
+需要明确：M5.2 **不是** automatic repair，**不是** execution self-healing，**只是** retrieval enhancement——它不修改执行计划，不改变 repair policy，`repair.py` 仍是可修复性的唯一权威。
+
+字段行为：默认冻结语料（v1）**不会**产生 `knowledge_gate`；只有 v2 knowledge corpus（携带 `failure_modes`）才会 additive 追加 `case_schema_version` / `knowledge_gate`。安全边界：SECURITY / DATA_INTEGRITY / TRANSPORT / UNCLASSIFIED 失败下不会推荐带 `auto_applied` 知识的案例。评估见 [M5.2 评估报告](docs/M5.2_EVALUATION_REPORT.md)。
 # 最新入口：电脑端控制台
 
-打开 http://127.0.0.1:8002/console/ ，直接创建任务、查看进度与历史、取消任务和下载结果。Vue 3 + TypeScript 控制台已接入真实 API；当前 352 项 Python 测试通过。见 [控制台操作与启动说明](docs/CONSOLE.md)。上方较早阶段的记录保留作开发过程参考。
+打开 http://127.0.0.1:8002/console/ ，直接创建任务、查看进度与历史、取消任务和下载结果。Vue 3 + TypeScript 控制台已接入真实 API；当前 389 项 Python 测试通过。见 [控制台操作与启动说明](docs/CONSOLE.md)。上方较早阶段的记录保留作开发过程参考。

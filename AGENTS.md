@@ -617,21 +617,36 @@ Implemented:
 - M5.1-B feature gate over BM25 retrieval
 - M5.1-C deterministic retrieval evaluation
 
+## M5.2
+
+Failure-aware knowledge retrieval
+
+Implemented:
+
+- M5.2-A Case Knowledge v2 loader
+- M5.2-B failure-aware knowledge retrieval
+- M5.2-C evaluation and freeze evidence
+
 Current milestone:
 
-## M5.1 Final Freeze
+## M5.2 Final Freeze
 
-M5.1 Final Freeze is complete.
+M5.2 Final Freeze is complete.
 
 - M5.0: Retrieval contract lock
 - M5.1: Observation-aware retrieval
 - M5.1-A: Deterministic evidence feature extraction
 - M5.1-B: Feature gate over BM25 retrieval
 - M5.1-C: Deterministic retrieval evaluation
+- M5.2: Failure-aware knowledge retrieval
+- M5.2-A: Case Knowledge v2 Loader
+- M5.2-B: Failure-aware Knowledge Retrieval
+- M5.2-C: Evaluation & Freeze Evidence
 
-M5 not yet complete: a larger independent retrieval evaluation set, and pipeline
+M5 not yet complete: a larger independent retrieval evaluation set, pipeline
 activation of `field_mapping` (the running pipeline does not pass `fields` to
-`retrieve`). The M6 rule / no-RAG / RAG comparison has not started.
+`retrieve`), and wiring an observed failure into `failure_context` (the running
+pipeline does not pass it). The M6 rule / no-RAG / RAG comparison has not started.
 
 ---
 
@@ -671,7 +686,7 @@ Success requires verification.
 
 # Current Milestone
 
-## M5.1 Final Freeze
+## M5.2 Final Freeze
 
 Completed:
 
@@ -679,6 +694,13 @@ Completed:
 - M5.1-A deterministic evidence feature extraction
 - M5.1-B feature gate over BM25 retrieval
 - M5.1-C deterministic retrieval evaluation
+- M5.2-A Case Knowledge v2 Loader
+- M5.2-B Failure-aware Knowledge Retrieval
+- M5.2-C Evaluation & Freeze Evidence
+
+Architecture:
+
+    BM25  ->  Feature Gate  ->  Failure-aware Ranking
 
 Retrieval result contract (additive only):
 
@@ -690,24 +712,37 @@ Legacy keys preserved:
 - corpus_sha256
 - cases
 
-M5.1 additive keys:
+M5.1 additive keys (enabled result):
 
 - feature_schema_version
 - query_features
 - gate
 
-Feature gate guarantees:
+M5.2 additive keys (only when the corpus carries structured knowledge):
 
-- deterministic, closed-vocabulary comparison; no LLM call, no IO
-- BM25 remains the ranking core; features only gate and lightly re-rank
-- `method` is a safety boundary: a case declaring the other method is filtered,
-  never downweighted, so GET and POST are never converted into each other
-- RAG-off output is unchanged and the frozen corpus has no features, so legacy
-  BM25 scores, ordering and the inactive gate are preserved
+- case_schema_version
+- knowledge_gate
 
-Carried over from M4.4 (unchanged):
+Safety guarantees:
 
-Repair boundary:
+- deterministic; closed-vocabulary comparison; no LLM call, no IO
+- no execution influence: failure-aware knowledge only re-ranks retrieval results
+  and never modifies a plan
+- no repair policy change: `repair.py` remains authoritative; this layer only
+  projects repairability read-only from the taxonomy and policy constants
+- BM25 remains the ranking core; knowledge only gates and lightly re-ranks
+- restricted failures (SECURITY / DATA_INTEGRITY / TRANSPORT / UNCLASSIFIED)
+  never recommend a case carrying `auto_applied` knowledge
+- RAG-off output is unchanged; the frozen corpus carries no knowledge fields, so
+  legacy BM25 scores, ordering and the inactive gate are preserved
+
+Knowledge boundary:
+
+- `knowledge.py` reads `errors.SPECS` and the read-only repair policy constants
+  only; it imports no execution, gateway or HTTP client
+- `failure_match` is pure: it calls no model, no repair driver and no executor
+
+Carried over from M4.4 repair boundary (unchanged):
 
 Automatically applied:
 
@@ -732,10 +767,9 @@ Safety guarantees:
 - no automatic security bypass
 - execution budget bounded
 
-M5 not yet complete:
+Known limitations:
 
-- a larger independent retrieval evaluation set (the M5.1-C evaluation is a small
-  in-repo fixture, not a benchmark)
-- pipeline activation of `field_mapping` (the running pipeline does not pass
-  `fields` to `retrieve`)
-- the M6 rule / no-RAG / RAG comparison has not started
+- `failure_context` is not yet wired into the production pipeline
+- the M5.2 evaluation is an in-repo fixture, not a benchmark
+- `field_mapping` is not activated by the real `retrieve` call
+- no claim of a system-wide success-rate improvement is made

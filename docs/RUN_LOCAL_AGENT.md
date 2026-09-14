@@ -70,7 +70,7 @@ Set-Location E:\PaChongLLMragzuoping
 
 - `evidence.json`：请求 ID、参数变化、响应字段形状；不保存完整响应或请求头。
 - `cloud_payload.json`：实际交给模型的业务输入，可核查上传范围；系统 schema/格式指令由网关附加。
-- `retrieval.json`：BM25 + observation-aware feature gate 的检索结果。legacy 字段：`enabled`、`algorithm`、`corpus_version`、`corpus_sha256`、命中案例 `cases`；M5.1 additive 追加 `feature_schema_version`、`query_features`、`gate`。关闭 RAG 时仅保留 legacy 字段且 `cases` 为空，输出与旧契约完全一致。
+- `retrieval.json`：BM25 + observation-aware feature gate + failure-aware knowledge 的检索结果。legacy 字段：`enabled`、`algorithm`、`corpus_version`、`corpus_sha256`、命中案例 `cases`。字段仅 additive：M5.1 追加 `feature_schema_version`、`query_features`、`gate`；M5.2 v2 knowledge corpus（携带 `failure_modes`）额外追加 `case_schema_version`、`knowledge_gate`。默认冻结语料（v1）不产生 knowledge 字段。关闭 RAG 时仅保留 legacy 字段且 `cases` 为空，输出与旧契约完全一致。补充：failure-aware 目前是**能力层**，尚未连接 `run.py` 的 production failure_context（生产任务中该阶段恒为中性）。
 - `plan.json`：模型提出的计划；是否验证成功以 report 为准。
 - `result.json`：成功采集的数据；部分采集也会保存，完整性见报告。
 - `collector.py`：由已验证计划与固定模板生成的独立采集脚本；`collector_result.json` 是它的运行结果，`collector_verification.json` 记录与内部结果的比对。

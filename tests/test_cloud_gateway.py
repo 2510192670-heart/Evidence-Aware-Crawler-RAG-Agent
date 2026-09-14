@@ -14,6 +14,50 @@ class Answer(BaseModel):
     ok: bool
 
 
+@pytest.mark.parametrize('error,code,calls', [(httpx.ConnectTimeout, 'connect_timeout', 2),
+    (httpx.ReadTimeout, 'read_timeout', 1), (httpx.WriteTimeout, 'write_timeout', 1),
+    (httpx.PoolTimeout, 'pool_timeout', 1)])
+def test_timeout_phase_is_reported_without_exception_details(error, code, calls):
+    def handler(request):
+        raise error('private-token-in-error')
+    gateway = CloudGateway(config(), transport=httpx.MockTransport(handler))
+    with pytest.raises(GatewayError) as caught:
+        run(gateway)
+    assert caught.value.code == code
+    assert 'private-token' not in str(caught.value)
+    # 仅连接类短暂故障重试一次；其他超时阶段只发送一次。
+    assert gateway.calls == calls
+
+
+def test_connect_timeout_retries_once_then_succeeds():
+    attempts = {'n': 0}
+    def handler(request):
+        attempts['n'] += 1
+        if attempts['n'] == 1:
+            raise httpx.ConnectTimeout('transient')
+        return response(usage={'prompt_tokens': 3, 'completion_tokens': 1})
+    gateway = CloudGateway(config(), transport=httpx.MockTransport(handler))
+    result = run(gateway)
+    assert result.data.ok is True
+    assert gateway.calls == 2
+    # 失败尝试仍占一个预算槽，其用量为 unknown。
+    assert len(gateway.usage_history) == 2
+    assert gateway.usage_history[0].input_tokens is None
+    assert gateway.usage_history[1].input_tokens == 3
+
+
+def test_network_error_retries_once_then_succeeds():
+    attempts = {'n': 0}
+    def handler(request):
+        attempts['n'] += 1
+        if attempts['n'] == 1:
+            raise httpx.ConnectError('transient')
+        return response()
+    gateway = CloudGateway(config(), transport=httpx.MockTransport(handler))
+    assert run(gateway).data.ok is True
+    assert gateway.calls == 2
+
+
 def config(**kwargs):
     return CloudConfig('https://model.example/v1', 'test-secret', 'example-model', **kwargs)
 

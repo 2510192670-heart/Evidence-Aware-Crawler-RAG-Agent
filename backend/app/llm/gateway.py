@@ -38,6 +38,10 @@ class ModelResult:
 class CloudGateway:
     """每个任务新建一个实例；预算不在不同任务之间共享。"""
 
+    # 只有短暂连接故障允许重试；鉴权、限流、服务端错误和读写/池超时不重试。
+    RETRYABLE = frozenset({'connect_timeout', 'network_error'})
+    MAX_ATTEMPTS = 2
+
     def __init__(self, config: CloudConfig, transport: httpx.AsyncBaseTransport | None = None):
         self.config = config
         self.transport = transport
@@ -79,39 +83,16 @@ class CloudGateway:
         if cfg.thinking is not None:
             body['thinking'] = {'type': cfg.thinking}
 
-        async with self._lock:
-            if self.calls >= 4:
-                raise GatewayError('call_budget_exceeded')
-            self.calls += 1
-            usage_index = len(self.usage_history)
-            self.usage_history.append(TokenUsage())
-
         started = time.monotonic()
-        try:
-            # HTTPX 分段超时不等于请求总时限，因此外层使用 asyncio.timeout。
-            async with asyncio.timeout(cfg.timeout_seconds):
-                async with httpx.AsyncClient(
-                    transport=self.transport, trust_env=False, follow_redirects=False,
-                    timeout=httpx.Timeout(cfg.timeout_seconds, connect=min(10, cfg.timeout_seconds)),
-                ) as client:
-                    async with client.stream(
-                        'POST', cfg.base_url + '/chat/completions',
-                        headers={'Authorization': 'Bearer ' + cfg.api_key}, json=body,
-                    ) as resp:
-                        if not 200 <= resp.status_code < 300:
-                            codes = {401: 'authentication_failed', 403: 'access_denied', 429: 'rate_limited'}
-                            fallback = ('redirect_rejected' if 300 <= resp.status_code < 400 else
-                                        'provider_error' if resp.status_code >= 500 else 'request_rejected')
-                            raise GatewayError(codes.get(resp.status_code, fallback))
-                        raw = bytearray()
-                        async for chunk in resp.aiter_bytes():
-                            if len(raw) + len(chunk) > 256 * 1024:
-                                raise GatewayError('response_too_large')
-                            raw.extend(chunk)
-        except (TimeoutError, httpx.TimeoutException):
-            raise GatewayError('timeout') from None
-        except httpx.HTTPError:
-            raise GatewayError('network_error') from None
+        raw = usage_index = None
+        for attempt in range(1, self.MAX_ATTEMPTS + 1):
+            try:
+                raw, usage_index = await self._send(body)
+                break
+            except GatewayError as error:
+                # 仅短暂连接故障重试一次；重试同样占用一次调用预算。
+                if error.code not in self.RETRYABLE or attempt == self.MAX_ATTEMPTS:
+                    raise
 
         try:
             envelope = json.loads(raw)
@@ -138,3 +119,48 @@ class CloudGateway:
         except (ValueError, TypeError, KeyError, IndexError, AttributeError, ValidationError):
             raise GatewayError('invalid_output') from None
         return ModelResult(data, usage, cfg.model, time.monotonic() - started)
+
+    async def _send(self, body):
+        """发送一次请求并读取响应正文；每次尝试都占用一个调用预算槽。"""
+        cfg = self.config
+        async with self._lock:
+            if self.calls >= 4:
+                raise GatewayError('call_budget_exceeded')
+            self.calls += 1
+            usage_index = len(self.usage_history)
+            self.usage_history.append(TokenUsage())
+
+        try:
+            # HTTPX 分段超时不等于请求总时限，因此外层使用 asyncio.timeout。
+            async with asyncio.timeout(cfg.timeout_seconds):
+                async with httpx.AsyncClient(
+                    transport=self.transport, trust_env=False, follow_redirects=False,
+                    timeout=httpx.Timeout(cfg.timeout_seconds, connect=min(10, cfg.timeout_seconds)),
+                ) as client:
+                    async with client.stream(
+                        'POST', cfg.base_url + '/chat/completions',
+                        headers={'Authorization': 'Bearer ' + cfg.api_key}, json=body,
+                    ) as resp:
+                        if not 200 <= resp.status_code < 300:
+                            codes = {401: 'authentication_failed', 403: 'access_denied', 429: 'rate_limited'}
+                            fallback = ('redirect_rejected' if 300 <= resp.status_code < 400 else
+                                        'provider_error' if resp.status_code >= 500 else 'request_rejected')
+                            raise GatewayError(codes.get(resp.status_code, fallback))
+                        raw = bytearray()
+                        async for chunk in resp.aiter_bytes():
+                            if len(raw) + len(chunk) > 256 * 1024:
+                                raise GatewayError('response_too_large')
+                            raw.extend(chunk)
+        except httpx.ConnectTimeout:
+            raise GatewayError('connect_timeout') from None
+        except httpx.ReadTimeout:
+            raise GatewayError('read_timeout') from None
+        except httpx.WriteTimeout:
+            raise GatewayError('write_timeout') from None
+        except httpx.PoolTimeout:
+            raise GatewayError('pool_timeout') from None
+        except (TimeoutError, httpx.TimeoutException):
+            raise GatewayError('timeout') from None
+        except httpx.HTTPError:
+            raise GatewayError('network_error') from None
+        return raw, usage_index

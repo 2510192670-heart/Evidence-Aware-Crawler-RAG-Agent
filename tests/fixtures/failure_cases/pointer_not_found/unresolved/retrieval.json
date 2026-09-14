@@ -1,0 +1,50 @@
+{
+  "enabled": true,
+  "algorithm": "BM25Okapi",
+  "corpus_version": 1,
+  "corpus_sha256": "678f87ece8bdb0aa4171f5f80b6b289cd773215639b7e30d82dc4953f5cba1f2",
+  "cases": [
+    {
+      "id": "page_items",
+      "title": "顶层列表与明确结束标记",
+      "terms": [
+        "page",
+        "items",
+        "has_next",
+        "total"
+      ],
+      "guidance": "For a page-number GET response with items, has_next and total: inspect /items, /has_next and /total. Map each requested field relative to an actual item. Use only query parameters present in the observed request. Verify total and unique identifiers across pages.",
+      "score": 3.405262
+    },
+    {
+      "id": "rows_more",
+      "title": "别名字段映射",
+      "terms": [
+        "p",
+        "rows",
+        "sku",
+        "title",
+        "more",
+        "total"
+      ],
+      "guidance": "A rows array may use sku and title where the requested outputs are id and name. Confirm observed types and meaning before mapping. The page parameter may be p. Use /more or /total only when present. Never copy an example request identifier.",
+      "score": 0.520824
+    }
+  ],
+  "feature_schema_version": 1,
+  "query_features": {
+    "method": "GET",
+    "page_location": "query",
+    "items_container": "nested",
+    "stop_signal": "total_int_only",
+    "continuation_flag": "absent",
+    "field_mapping": "unknown",
+    "ambiguity": "multiple_candidates"
+  },
+  "gate": {
+    "applied": false,
+    "filtered": [],
+    "matched": [],
+    "conflicted": []
+  }
+}

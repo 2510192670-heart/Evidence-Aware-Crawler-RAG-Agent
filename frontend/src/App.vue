@@ -7,7 +7,7 @@ const route=useRoute(), router=useRouter()
 const tasks=ref<Task[]>([]), selected=ref<Task|null>(null), artifacts=ref<Artifact[]>([]), events=ref<{seq:number,status:string}[]>([])
 const page=ref(1),total=ref(0),error=ref(''), actionError=ref(''),loading=ref(true),pending=ref(false),configured=ref(false)
 const url=ref('http://127.0.0.1:8000/'),fields=ref('id,name,price_fen'),maxPages=ref(3),clickText=ref('下一页'),rag=ref(true)
-const curlText=ref(''), curlPreview=ref<{executable:boolean,url:string|null,query:Record<string,string>,reasons:string[],notes?:string[]}|null>(null), previewBusy=ref(false)
+const curlText=ref(''), curlPreview=ref<{executable:boolean,url:string|null,query:Record<string,string>,method?:string,request_body?:Record<string,unknown>|null,reasons:string[],notes?:string[]}|null>(null), previewBusy=ref(false)
 watch(curlText,()=>{curlPreview.value=null})
 async function previewCurl(){previewBusy.value=true;actionError.value='';curlPreview.value=null;try{curlPreview.value=await request('/import/curl',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:curlText.value})})}catch(e){actionError.value=explain(e)}finally{previewBusy.value=false}}
 const terminal=['succeeded','failed','cancelled','interrupted']
@@ -29,7 +29,7 @@ async function refresh(){if(refreshing)return;refreshing=true;const g=generation
 async function poll(){await refresh();if(alive)timer=setTimeout(poll,1500)}
 watch(()=>route.params.taskId,()=>{generation++;selected.value=null;artifacts.value=[];events.value=[];actionError.value='';void refresh()})
 async function changePage(delta:number){page.value+=delta;generation++;await refresh()}
-async function create(){if(pending.value)return;pending.value=true;actionError.value='';try{const task=await request('/tasks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url.value.trim(),fields:fields.value.split(',').map(x=>x.trim()).filter(Boolean),max_pages:maxPages.value,click_text:clickText.value,rag_enabled:rag.value,imported_url:curlPreview.value?.executable?curlPreview.value.url:null})});page.value=1;await router.push('/'+task.id);await refresh()}catch(e){actionError.value=explain(e)}finally{pending.value=false}}
+async function create(){if(pending.value)return;pending.value=true;actionError.value='';try{const task=await request('/tasks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url.value.trim(),fields:fields.value.split(',').map(x=>x.trim()).filter(Boolean),max_pages:maxPages.value,click_text:clickText.value,rag_enabled:rag.value,imported_url:curlPreview.value?.executable?curlPreview.value.url:null,imported_method:curlPreview.value?.executable?(curlPreview.value.method||'GET'):'GET',imported_request_body:curlPreview.value?.executable?(curlPreview.value.request_body??null):null})});page.value=1;await router.push('/'+task.id);await refresh()}catch(e){actionError.value=explain(e)}finally{pending.value=false}}
 async function cancel(){if(!selected.value)return;pending.value=true;actionError.value='';try{await request('/tasks/'+selected.value.id+'/cancel',{method:'POST'});await refresh()}catch(e){actionError.value=explain(e)}finally{pending.value=false}}
 function date(s:string){return new Date(s).toLocaleString('zh-CN',{hour12:false})}
 function reached(s:string){return events.value.some(e=>e.status===s)}
@@ -59,7 +59,7 @@ onMounted(poll);onUnmounted(()=>{alive=false;clearTimeout(timer)})
  <nav v-if="total>5" class="pagination" aria-label="历史分页"><button :disabled="page===1" @click="changePage(-1)">上一页</button><span>{{page}} / {{Math.ceil(total/5)}}</span><button :disabled="page*5>=total" @click="changePage(1)">下一页</button></nav>
  </section>
  <section class="panel"><h2>任务详情</h2><p v-if="!selected" class="empty">{{route.params.taskId?'正在加载任务…':'选择任务查看执行详情。'}}</p>
- <template v-else><div class="heading detail-heading"><div><strong>{{selected.id.slice(0,8)}}</strong> <span class="status" :class="selected.status">{{labels[selected.status]}}</span></div><button v-if="!terminal.includes(selected.status)" :disabled="pending||selected.status==='cancelling'" @click="cancel">取消任务</button><span v-else class="muted">{{date(selected.created_at)}}</span></div>
+ <template v-else><RouterLink :to="'/'+selected.id+'/trace'">查看 Task Trace →</RouterLink><div class="heading detail-heading"><div><strong>{{selected.id.slice(0,8)}}</strong> <span class="status" :class="selected.status">{{labels[selected.status]}}</span></div><button v-if="!terminal.includes(selected.status)" :disabled="pending||selected.status==='cancelling'" @click="cancel">取消任务</button><span v-else class="muted">{{date(selected.created_at)}}</span></div>
  <ol class="steps"><li v-for="(s,i) in stages" :key="s" :class="{done:reached(s)}"><span>{{reached(s)?'✓':i+1}}</span>{{stageNames[i]}}</li></ol>
  <div class="metrics"><div><b>{{summary?.count??'—'}}</b>条数据</div><div><b>{{summary?.pages??'—'}}</b>页</div><div><b>{{summary?.model_calls??'—'}}</b>次模型调用</div></div>
  <p v-if="summary?.error" class="alert" role="status">任务{{labels[selected.status]}}：{{summary.error}}</p>

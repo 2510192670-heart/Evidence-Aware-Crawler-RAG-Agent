@@ -11,15 +11,20 @@ from fastapi import FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .llm.config import CloudConfig
-from .pipeline.contracts import local_origin, SENSITIVE
+from .pipeline.contracts import local_origin, has_sensitive_keys, SENSITIVE
 from .pipeline.curl_import import parse_curl, checked_url
 from .storage.instance_lock import InstanceLock
-from .storage.repository import Repository, BusyError, TERMINAL
+from .storage.repository import Repository, BusyError, TERMINAL, ARTIFACT_NAMES
 from .tasks.service import TaskService, pipeline_worker
+from .trace.projection import project_trace
+
+# 内联只读查看的白名单，从冻结的 ARTIFACT_NAMES 派生，避免第二份清单漂移。只有 JSON
+# 契约产物可内联；collector.py / report.md 保持 download-only，不提供任何执行或富文本面。
+INLINE_ARTIFACTS = frozenset(name for name in ARTIFACT_NAMES if name.endswith('.json'))
 
 
 class TaskInput(BaseModel):
@@ -30,11 +35,32 @@ class TaskInput(BaseModel):
     click_text: str = Field(default='下一页', max_length=80)
     rag_enabled: bool = True
     imported_url: str | None = Field(default=None, max_length=512)
+    # 复用 curl_import 已解析的请求元数据；不再二次解析原始 cURL 文本。
+    imported_method: str = Field(default='GET', max_length=8)
+    imported_request_body: dict | None = Field(default=None)
 
     @field_validator('imported_url')
     @classmethod
     def check_imported(cls, value):
         return checked_url(value) if value is not None else None
+
+    @model_validator(mode='after')
+    def check_imported_request(self):
+        """导入元数据必须与 imported_url 同时出现，且方法与请求体形态一致。"""
+        if self.imported_url is None:
+            if self.imported_method != 'GET' or self.imported_request_body is not None:
+                raise ValueError('imported_request_requires_url')
+            return self
+        if self.imported_method not in {'GET', 'POST'}:
+            raise ValueError('unsupported_imported_method')
+        if self.imported_method == 'GET':
+            if self.imported_request_body is not None:
+                raise ValueError('get_import_must_not_carry_request_body')
+        elif not isinstance(self.imported_request_body, dict) or not self.imported_request_body:
+            raise ValueError('post_import_requires_json_object_body')
+        elif has_sensitive_keys(self.imported_request_body):
+            raise ValueError('sensitive_imported_body')
+        return self
 
     @field_validator('url')
     @classmethod
@@ -191,13 +217,61 @@ def create_app(data_dir=None, config_factory=CloudConfig.deepseek_from_env, work
             return []
         return json.loads(await artifact_content(entry))
 
+    @app.get('/api/v1/tasks/{task_id}/artifacts/{filename}')
+    async def artifact_document(task_id: str, filename: str):
+        """M5.4-A：内联查看已注册的 JSON 契约产物（只读，复用 sha256 校验）。
+
+        非 JSON 产物（collector.py / report.md）不在白名单内，保持 download-only；
+        文件名必须命中白名单，因此不存在任意路径读取面。
+        """
+        if filename not in INLINE_ARTIFACTS:
+            raise APIError(404, 'artifact_not_found', task_id)
+        await task_or_404(task_id)
+        entries = await asyncio.to_thread(app.state.repo.artifacts, task_id)
+        entry = next((item for item in entries if item['filename'] == filename), None)
+        if entry is None:
+            raise APIError(404, 'artifact_not_found', task_id)
+        raw = await artifact_content(entry)
+        try:
+            value = json.loads(raw)
+        except ValueError:
+            raise APIError(409, 'artifact_unreadable', task_id) from None
+        return JSONResponse(value, headers={'X-Content-Type-Options': 'nosniff'})
+
+    @app.get('/api/v1/tasks/{task_id}/trace')
+    async def trace(task_id: str):
+        """M5.4-A：只读 Trace 投影。
+
+        完全由 task_events 与已注册产物派生，不写任何文件、不新增产物、不调用模型；
+        运行中的任务同样可读（此时产物尚未注册，步骤显示为 pending）。证据不可读时
+        一律按缺失处理，投影不会猜测。
+        """
+        task = await task_or_404(task_id)
+        events = await asyncio.to_thread(app.state.repo.events, task_id)
+        entries = await asyncio.to_thread(app.state.repo.artifacts, task_id)
+        artifacts = {}
+        for entry in entries:
+            if entry['filename'] not in INLINE_ARTIFACTS:
+                continue
+            try:
+                artifacts[entry['filename']] = json.loads(
+                    await asyncio.to_thread(app.state.repo.read_artifact, entry))
+            except (ValueError, OSError):
+                artifacts[entry['filename']] = None
+        return project_trace(task, events, artifacts, entries)
+
     @app.get('/api/v1/artifacts/{artifact_id}/download')
     async def download(artifact_id: str):
         entry = await asyncio.to_thread(app.state.repo.artifact, artifact_id)
         if entry is None:
             raise APIError(404, 'artifact_not_found')
         raw = await artifact_content(entry)
-        media = 'application/json' if entry['filename'].endswith('.json') else 'text/markdown'
+        if entry['filename'].endswith('.json'):
+            media = 'application/json'
+        elif entry['filename'].endswith('.py'):
+            media = 'text/x-python'
+        else:
+            media = 'text/markdown'
         return Response(raw, media_type=media, headers={
             'Content-Disposition': f'attachment; filename="{entry["filename"]}"',
             'X-Content-Type-Options': 'nosniff',

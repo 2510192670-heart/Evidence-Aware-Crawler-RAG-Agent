@@ -1,0 +1,13 @@
+{
+  "planner_stub_calls": 1,
+  "cloud_llm_calls": 0,
+  "http_requests": [],
+  "execution_plan_hashes": [
+    "7f084e9e55ac7aeb84ae402bb0920bf53d993dcdde252a32ba170f3b04d37563"
+  ],
+  "stages": [
+    "observing",
+    "analyzing",
+    "executing"
+  ]
+}

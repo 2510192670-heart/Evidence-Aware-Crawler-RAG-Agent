@@ -1,0 +1,12 @@
+{
+  "request_id": "req_001",
+  "items_pointer": "/missing",
+  "fields": {
+    "id": "/id"
+  },
+  "unique_key": "id",
+  "pagination_location": "query",
+  "page_parameter": "page",
+  "has_next_pointer": null,
+  "total_pointer": "/total"
+}

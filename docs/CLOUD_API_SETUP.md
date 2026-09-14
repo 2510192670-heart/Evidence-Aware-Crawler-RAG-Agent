@@ -46,7 +46,7 @@ Set-Location E:\PaChongLLMragzuoping
 
 此命令只发送固定测试内容：要求返回 `{"ok":true}`，不读取网页、目录或项目源码。输出包含状态、模型名、输入/输出/缓存 token 和耗时；缺失的 usage 字段显示 null，而不是 0。
 
-`--live` 会发送真实请求，可能产生费用；出错不自动重试。超时和取消不能保证服务商未计费。不要把不断重跑当成错误修复方式。
+`--live` 会发送真实请求，可能产生费用；仅连接类短暂故障（connect_timeout / network_error）自动重试一次，其他错误不重试。超时和取消不能保证服务商未计费。不要把不断重跑当成错误修复方式。
 
 ## 3. 后端长期运行时的配置
 
@@ -76,13 +76,14 @@ $env:WDA_LLM_MAX_OUTPUT_TOKENS = '1000'
 | provider_error | 5xx，记录时间，查看官方服务状态 |
 | request_rejected | 其他非成功 HTTP 响应，检查模型/参数与账号状态；此码不区分余额不足等具体原因 |
 | redirect_rejected | API 重定向被拒绝，核对官方根地址 |
-| timeout / network_error | 网络或总时间失败；可能已计费 |
+| connect_timeout / read_timeout / write_timeout / pool_timeout | 分阶段超时；connect_timeout 会重试一次，其余不重试；可能已计费 |
+| timeout / network_error | 总时间失败或连接类网络错误（network_error 重试一次）；可能已计费 |
 | invalid_output | 空内容、非法 JSON、schema 不符或响应结构不兼容 |
 | output_incomplete | 截断、内容过滤或非正常完成；不执行输出 |
 | input_too_large / response_too_large | 超过输入 16 KiB（含 schema/指令）或响应 256 KiB 上限 |
 | call_budget_exceeded | 同一任务网关实例已发送 4 次请求 |
 
-错误不回显供应商原始正文，避免凭证和数据进入日志。任何自动重试策略都需要放在任务控制器内并计入预算；当前没有自动重试。
+错误不回显供应商原始正文，避免凭证和数据进入日志。网关仅对 connect_timeout / network_error 这类短暂连接故障重试一次，且重试计入每任务 4 次调用预算；鉴权、限流、5xx 与读写/池超时不重试。
 
 ## 5. 费用控制与统计边界
 

@@ -1,0 +1,23 @@
+[
+  {
+    "request_id": "req_001",
+    "method": "GET",
+    "status": 200,
+    "query": {
+      "page": "1"
+    },
+    "response_shape": {
+      "items": [
+        {
+          "id": "<integer>"
+        }
+      ],
+      "total": "<integer>",
+      "other": [
+        {
+          "id": "<integer>"
+        }
+      ]
+    }
+  }
+]

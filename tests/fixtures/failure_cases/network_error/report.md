@@ -1,0 +1,25 @@
+# 本机测试站分析报告
+
+- task_id: dc1af1e4-7f1f-5e44-af27-d0ca3915334d
+- status: failed
+- model: fixture-planner-stub
+- source: browser
+- retrieval: {'enabled': True, 'algorithm': 'BM25Okapi', 'corpus_version': 1, 'corpus_sha256': '678f87ece8bdb0aa4171f5f80b6b289cd773215639b7e30d82dc4953f5cba1f2', 'feature_schema_version': 1, 'query_features': {'method': 'GET', 'page_location': 'query', 'items_container': 'nested', 'stop_signal': 'total_int_only', 'continuation_flag': 'absent', 'field_mapping': 'unknown', 'ambiguity': 'single_candidate'}, 'gate': {'applied': False, 'filtered': [], 'matched': [], 'conflicted': []}, 'case_ids': ['page_items', 'rows_more']}
+- failure_retrieval: {'case_ids': ['page_items', 'rows_more'], 'knowledge_gate_applied': False}
+- error: network_error
+- error_type: PipelineError
+- error_category: TRANSPORT
+- error_repairable: False
+- error_retryable: True
+- repair_attempted: False
+- repair_count: 0
+- repair_outcome: rejected
+- repair_applied: False
+- repair_original_plan_hash: 9c9ad0a8eef032e07d250f3f0b098807d905c0975dfaeafc886365c964d56d9e
+- repair_candidate_plan_hash: None
+- repair_execution_plan_hash: 9c9ad0a8eef032e07d250f3f0b098807d905c0975dfaeafc886365c964d56d9e
+- elapsed_seconds: 0.0
+- model_calls: 1
+- usage: []
+
+范围：本机 GET 页码分页；支持可关闭的本地案例 RAG；成功任务另导出独立 collector.py。

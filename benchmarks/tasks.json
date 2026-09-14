@@ -1,0 +1,521 @@
+{
+  "schema_version": 1,
+  "name": "m4-loopback-benchmark",
+  "description": "Frozen dev/held-out split over the multi-structure loopback fixtures in fixtures/. Ground truth only: it does not claim current capability.",
+  "fixture_default_port": 8100,
+  "corpus_version": 1,
+  "tasks": [
+    {
+      "id": "s1-dev-1",
+      "scenario": "S1",
+      "split": "dev",
+      "entry_url": "http://127.0.0.1:8100/pages/s1-dev-1",
+      "fields": ["sku", "title", "amount_fen"],
+      "page_size": 10,
+      "max_pages": 10,
+      "solution": {
+        "method": "GET",
+        "request_path": "/catalog/v1/items",
+        "pagination_parameter": "page",
+        "page_size_parameter": "per_page",
+        "items_pointer": "/items",
+        "has_next_pointer": "/has_next",
+        "total_pointer": "/total",
+        "unique_key": "sku"
+      },
+      "expected": {
+        "supported": true,
+        "should_fail": false,
+        "record_count": 25,
+        "pages": 3,
+        "completeness": "complete"
+      }
+    },
+    {
+      "id": "s1-dev-2",
+      "scenario": "S1",
+      "split": "dev",
+      "entry_url": "http://127.0.0.1:8100/pages/s1-dev-2",
+      "fields": ["code", "label", "price"],
+      "page_size": 8,
+      "max_pages": 10,
+      "solution": {
+        "method": "GET",
+        "request_path": "/catalog/v1/search",
+        "pagination_parameter": "p",
+        "page_size_parameter": "size",
+        "items_pointer": "/rows",
+        "has_next_pointer": "/more",
+        "total_pointer": "/total",
+        "unique_key": "code"
+      },
+      "expected": {
+        "supported": true,
+        "should_fail": false,
+        "record_count": 24,
+        "pages": 3,
+        "completeness": "complete"
+      }
+    },
+    {
+      "id": "s1-held-1",
+      "scenario": "S1",
+      "split": "held_out",
+      "entry_url": "http://127.0.0.1:8100/pages/s1-held-1",
+      "fields": ["article_no", "description", "net_price_fen"],
+      "page_size": 12,
+      "max_pages": 10,
+      "solution": {
+        "method": "GET",
+        "request_path": "/inventory/v2/lines",
+        "pagination_parameter": "page_no",
+        "page_size_parameter": "page_len",
+        "items_pointer": "/entries",
+        "has_next_pointer": "/more_pages",
+        "total_pointer": "/record_total",
+        "unique_key": "article_no"
+      },
+      "expected": {
+        "supported": true,
+        "should_fail": false,
+        "record_count": 32,
+        "pages": 3,
+        "completeness": "complete"
+      }
+    },
+    {
+      "id": "s1-held-2",
+      "scenario": "S1",
+      "split": "held_out",
+      "entry_url": "http://127.0.0.1:8100/pages/s1-held-2",
+      "fields": ["entry_id", "summary", "value"],
+      "page_size": 6,
+      "max_pages": 10,
+      "solution": {
+        "method": "GET",
+        "request_path": "/inventory/v2/ledger",
+        "pagination_parameter": "pg",
+        "page_size_parameter": "idx",
+        "items_pointer": "/lines",
+        "has_next_pointer": "/next_flag",
+        "total_pointer": "/count_total",
+        "unique_key": "entry_id"
+      },
+      "expected": {
+        "supported": true,
+        "should_fail": false,
+        "record_count": 18,
+        "pages": 3,
+        "completeness": "complete"
+      }
+    },
+    {
+      "id": "s2-dev-1",
+      "scenario": "S2",
+      "split": "dev",
+      "entry_url": "http://127.0.0.1:8100/pages/s2-dev-1",
+      "fields": ["sku", "title", "amount_fen"],
+      "page_size": 10,
+      "max_pages": 10,
+      "solution": {
+        "method": "POST",
+        "request_path": "/catalog/v1/query",
+        "pagination_parameter": "page",
+        "page_size_parameter": "page_size",
+        "items_pointer": "/items",
+        "has_next_pointer": "/has_next",
+        "total_pointer": "/total",
+        "unique_key": "sku"
+      },
+      "expected": {
+        "supported": true,
+        "should_fail": false,
+        "record_count": 20,
+        "pages": 2,
+        "completeness": "complete"
+      }
+    },
+    {
+      "id": "s2-dev-2",
+      "scenario": "S2",
+      "split": "dev",
+      "entry_url": "http://127.0.0.1:8100/pages/s2-dev-2",
+      "fields": ["code", "label", "price"],
+      "page_size": 10,
+      "max_pages": 10,
+      "solution": {
+        "method": "POST",
+        "request_path": "/catalog/v1/query-rows",
+        "pagination_parameter": "p",
+        "page_size_parameter": "size",
+        "items_pointer": "/rows",
+        "has_next_pointer": "/more",
+        "total_pointer": "/total",
+        "unique_key": "code"
+      },
+      "expected": {
+        "supported": true,
+        "should_fail": false,
+        "record_count": 30,
+        "pages": 3,
+        "completeness": "complete"
+      }
+    },
+    {
+      "id": "s2-held-1",
+      "scenario": "S2",
+      "split": "held_out",
+      "entry_url": "http://127.0.0.1:8100/pages/s2-held-1",
+      "fields": ["article_no", "description", "net_price_fen"],
+      "page_size": 8,
+      "max_pages": 10,
+      "solution": {
+        "method": "POST",
+        "request_path": "/inventory/v2/lookup",
+        "pagination_parameter": "page_no",
+        "page_size_parameter": "page_len",
+        "items_pointer": "/entries",
+        "has_next_pointer": "/more_pages",
+        "total_pointer": "/record_total",
+        "unique_key": "article_no"
+      },
+      "expected": {
+        "supported": true,
+        "should_fail": false,
+        "record_count": 24,
+        "pages": 3,
+        "completeness": "complete"
+      }
+    },
+    {
+      "id": "s2-held-2",
+      "scenario": "S2",
+      "split": "held_out",
+      "entry_url": "http://127.0.0.1:8100/pages/s2-held-2",
+      "fields": ["entry_id", "summary", "value"],
+      "page_size": 6,
+      "max_pages": 10,
+      "solution": {
+        "method": "POST",
+        "request_path": "/inventory/v2/browse",
+        "pagination_parameter": "pg",
+        "page_size_parameter": "idx",
+        "items_pointer": "/lines",
+        "has_next_pointer": "/next_flag",
+        "total_pointer": "/count_total",
+        "unique_key": "entry_id"
+      },
+      "expected": {
+        "supported": true,
+        "should_fail": false,
+        "record_count": 12,
+        "pages": 2,
+        "completeness": "complete"
+      }
+    },
+    {
+      "id": "s3-dev-1",
+      "scenario": "S3",
+      "split": "dev",
+      "entry_url": "http://127.0.0.1:8100/pages/s3-dev-1",
+      "fields": ["sku", "title", "amount_fen"],
+      "page_size": 10,
+      "max_pages": 10,
+      "solution": {
+        "method": "GET",
+        "request_path": "/catalog/v1/nested",
+        "pagination_parameter": "page",
+        "page_size_parameter": "page_size",
+        "items_pointer": "/data/records",
+        "has_next_pointer": "/data/hasMore",
+        "total_pointer": "/data/totalCount",
+        "unique_key": "sku"
+      },
+      "expected": {
+        "supported": true,
+        "should_fail": false,
+        "record_count": 30,
+        "pages": 3,
+        "completeness": "complete"
+      }
+    },
+    {
+      "id": "s3-dev-2",
+      "scenario": "S3",
+      "split": "dev",
+      "entry_url": "http://127.0.0.1:8100/pages/s3-dev-2",
+      "fields": ["code", "label", "price"],
+      "page_size": 7,
+      "max_pages": 10,
+      "solution": {
+        "method": "GET",
+        "request_path": "/catalog/v1/nested-total",
+        "pagination_parameter": "page",
+        "page_size_parameter": "page_size",
+        "items_pointer": "/data/records",
+        "has_next_pointer": null,
+        "total_pointer": "/data/totalCount",
+        "unique_key": "code"
+      },
+      "expected": {
+        "supported": true,
+        "should_fail": false,
+        "record_count": 21,
+        "pages": 3,
+        "completeness": "complete"
+      }
+    },
+    {
+      "id": "s3-held-1",
+      "scenario": "S3",
+      "split": "held_out",
+      "entry_url": "http://127.0.0.1:8100/pages/s3-held-1",
+      "fields": ["article_no", "description", "net_price_fen"],
+      "page_size": 10,
+      "max_pages": 10,
+      "solution": {
+        "method": "GET",
+        "request_path": "/inventory/v2/grouped",
+        "pagination_parameter": "page_no",
+        "page_size_parameter": "page_len",
+        "items_pointer": "/payload/entries",
+        "has_next_pointer": "/payload/has_more",
+        "total_pointer": "/payload/total_records",
+        "unique_key": "article_no"
+      },
+      "expected": {
+        "supported": true,
+        "should_fail": false,
+        "record_count": 26,
+        "pages": 3,
+        "completeness": "complete"
+      }
+    },
+    {
+      "id": "s3-held-2",
+      "scenario": "S3",
+      "split": "held_out",
+      "entry_url": "http://127.0.0.1:8100/pages/s3-held-2",
+      "fields": ["entry_id", "summary", "value"],
+      "page_size": 5,
+      "max_pages": 10,
+      "solution": {
+        "method": "GET",
+        "request_path": "/inventory/v2/grouped-summary",
+        "pagination_parameter": "page_idx",
+        "page_size_parameter": "batch_len",
+        "items_pointer": "/payload/entries",
+        "has_next_pointer": null,
+        "total_pointer": "/payload/total_records",
+        "unique_key": "entry_id"
+      },
+      "expected": {
+        "supported": true,
+        "should_fail": false,
+        "record_count": 14,
+        "pages": 3,
+        "completeness": "complete"
+      }
+    },
+    {
+      "id": "s4-dev-1",
+      "scenario": "S4",
+      "split": "dev",
+      "entry_url": "http://127.0.0.1:8100/pages/s4-dev-1",
+      "fields": ["sku", "title", "amount_fen"],
+      "page_size": 10,
+      "max_pages": 10,
+      "solution": {
+        "method": "GET",
+        "request_path": "/catalog/v1/items",
+        "pagination_parameter": "page",
+        "page_size_parameter": "per_page",
+        "items_pointer": "/items",
+        "has_next_pointer": "/has_next",
+        "total_pointer": "/total",
+        "unique_key": "sku"
+      },
+      "expected": {
+        "supported": true,
+        "should_fail": false,
+        "record_count": 25,
+        "pages": 3,
+        "completeness": "complete"
+      }
+    },
+    {
+      "id": "s4-dev-2",
+      "scenario": "S4",
+      "split": "dev",
+      "entry_url": "http://127.0.0.1:8100/pages/s4-dev-2",
+      "fields": ["code", "label", "price"],
+      "page_size": 8,
+      "max_pages": 10,
+      "solution": {
+        "method": "GET",
+        "request_path": "/catalog/v1/search",
+        "pagination_parameter": "p",
+        "page_size_parameter": "size",
+        "items_pointer": "/rows",
+        "has_next_pointer": "/more",
+        "total_pointer": "/total",
+        "unique_key": "code"
+      },
+      "expected": {
+        "supported": true,
+        "should_fail": false,
+        "record_count": 24,
+        "pages": 3,
+        "completeness": "complete"
+      }
+    },
+    {
+      "id": "s4-held-1",
+      "scenario": "S4",
+      "split": "held_out",
+      "entry_url": "http://127.0.0.1:8100/pages/s4-held-1",
+      "fields": ["article_no", "description", "net_price_fen"],
+      "page_size": 12,
+      "max_pages": 10,
+      "solution": {
+        "method": "GET",
+        "request_path": "/inventory/v2/lines",
+        "pagination_parameter": "page_no",
+        "page_size_parameter": "page_len",
+        "items_pointer": "/entries",
+        "has_next_pointer": "/more_pages",
+        "total_pointer": "/record_total",
+        "unique_key": "article_no"
+      },
+      "expected": {
+        "supported": true,
+        "should_fail": false,
+        "record_count": 32,
+        "pages": 3,
+        "completeness": "complete"
+      }
+    },
+    {
+      "id": "s4-held-2",
+      "scenario": "S4",
+      "split": "held_out",
+      "entry_url": "http://127.0.0.1:8100/pages/s4-held-2",
+      "fields": ["entry_id", "summary", "value"],
+      "page_size": 6,
+      "max_pages": 10,
+      "solution": {
+        "method": "GET",
+        "request_path": "/inventory/v2/ledger",
+        "pagination_parameter": "pg",
+        "page_size_parameter": "idx",
+        "items_pointer": "/lines",
+        "has_next_pointer": "/next_flag",
+        "total_pointer": "/count_total",
+        "unique_key": "entry_id"
+      },
+      "expected": {
+        "supported": true,
+        "should_fail": false,
+        "record_count": 18,
+        "pages": 3,
+        "completeness": "complete"
+      }
+    },
+    {
+      "id": "s5-dev-1",
+      "scenario": "S5",
+      "split": "dev",
+      "entry_url": "http://127.0.0.1:8100/pages/s5-dev-1",
+      "fields": ["sku", "title", "amount_fen"],
+      "page_size": 10,
+      "max_pages": 10,
+      "solution": {
+        "method": "GET",
+        "request_path": "/catalog/v1/duplicate-keys",
+        "pagination_parameter": "page",
+        "page_size_parameter": "page_size",
+        "items_pointer": "/items",
+        "has_next_pointer": "/has_next",
+        "total_pointer": "/total",
+        "unique_key": "sku"
+      },
+      "expected": {
+        "supported": true,
+        "should_fail": true,
+        "failure_kind": "duplicate_id"
+      }
+    },
+    {
+      "id": "s5-dev-2",
+      "scenario": "S5",
+      "split": "dev",
+      "entry_url": "http://127.0.0.1:8100/pages/s5-dev-2",
+      "fields": ["code", "label", "price"],
+      "page_size": 10,
+      "max_pages": 10,
+      "solution": {
+        "method": "GET",
+        "request_path": "/catalog/v1/total-shift",
+        "pagination_parameter": "page",
+        "page_size_parameter": "page_size",
+        "items_pointer": "/rows",
+        "has_next_pointer": "/more",
+        "total_pointer": "/total",
+        "unique_key": "code"
+      },
+      "expected": {
+        "supported": true,
+        "should_fail": true,
+        "failure_kind": "total_changed"
+      }
+    },
+    {
+      "id": "s5-held-1",
+      "scenario": "S5",
+      "split": "held_out",
+      "entry_url": "http://127.0.0.1:8100/pages/s5-held-1",
+      "fields": ["article_no", "description", "net_price_fen"],
+      "page_size": 10,
+      "max_pages": 10,
+      "solution": {
+        "method": "GET",
+        "request_path": "/inventory/v2/type-flip",
+        "pagination_parameter": "page_no",
+        "page_size_parameter": "page_len",
+        "items_pointer": "/entries",
+        "has_next_pointer": "/more_pages",
+        "total_pointer": "/record_total",
+        "unique_key": "article_no"
+      },
+      "expected": {
+        "supported": true,
+        "should_fail": true,
+        "failure_kind": "field_type_changed"
+      }
+    },
+    {
+      "id": "s5-held-2",
+      "scenario": "S5",
+      "split": "held_out",
+      "entry_url": "http://127.0.0.1:8100/pages/s5-held-2",
+      "fields": ["entry_id", "summary", "value"],
+      "page_size": 10,
+      "max_pages": 10,
+      "solution": {
+        "method": "GET",
+        "request_path": "/inventory/v2/blank-next",
+        "pagination_parameter": "pg_no",
+        "page_size_parameter": "pg_len",
+        "items_pointer": "/lines",
+        "has_next_pointer": "/next_flag",
+        "total_pointer": "/count_total",
+        "unique_key": "entry_id"
+      },
+      "expected": {
+        "supported": true,
+        "should_fail": true,
+        "failure_kind": "empty_page_with_next"
+      }
+    }
+  ]
+}

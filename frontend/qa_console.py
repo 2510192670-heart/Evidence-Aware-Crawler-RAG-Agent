@@ -6,11 +6,12 @@ Pass --live to create ONE real task and verify its download.
 import argparse
 import asyncio
 import json
+import hashlib
 from pathlib import Path
 from playwright.async_api import async_playwright, expect
 
 
-async def main(live=False):
+async def main(live=False, curl=False):
     async with async_playwright() as p:
         browser = await p.chromium.launch()
         page = await browser.new_page(viewport={'width': 1505, 'height': 1045})
@@ -47,19 +48,43 @@ async def main(live=False):
             await page.route('**/api/v1/**', api)
         await page.goto('http://127.0.0.1:8002/console/')
         await expect(page.get_by_role('button', name='创建任务', exact=True)).to_be_enabled()
+        if curl:
+            await page.locator('summary').click()
+            await page.get_by_label('cURL（bash）').fill("curl 'http://127.0.0.1:8000/api/products?page=1&page_size=10' -H 'Accept: application/json'")
+            await page.get_by_role('button', name='解析并预览').click()
+            await expect(page.get_by_text('已切换为导入请求模式')).to_be_visible()
         if not live:
             await expect(page.get_by_text('还没有任务，从左侧创建第一个任务。')).to_be_visible()
             await page.get_by_label('使用案例 RAG').uncheck()
-        await page.get_by_role('button', name='创建任务', exact=True).click()
+        async with page.expect_response(lambda r: r.url.endswith('/api/v1/tasks') and r.request.method == 'POST') as created:
+            await page.get_by_role('button', name='创建任务', exact=True).click()
+        task_id = (await (await created.value).json())['id']
         if live:
+            for _ in range(150):
+                task = await (await page.request.get('http://127.0.0.1:8002/api/v1/tasks/' + task_id)).json()
+                if task['status'] in ('succeeded', 'failed', 'cancelled', 'interrupted'):
+                    break
+                await asyncio.sleep(1)
+            assert task['status'] == 'succeeded', task['summary']
+            await page.wait_for_url('**/#/' + task_id)
             await expect(page.get_by_text('完整性验证通过', exact=False)).to_be_visible(timeout=150000)
-            task_id = page.url.split('#/')[1]
             async with page.expect_download() as info:
                 await page.get_by_role('link', name='下载 result.json', exact=True).click()
             download = await info.value
-            rows = json.loads(Path(await download.path()).read_text(encoding='utf-8'))
-            assert len(rows) == 30
-            assert [row['id'] for row in rows] == list(range(1,31))
+            raw = Path(await download.path()).read_bytes()
+            rows = json.loads(raw)
+            assert rows == [{'id': i, 'name': f'学习商品 {i:02d}', 'price_fen': 1000+i*100} for i in range(1,31)]
+            entries = (await (await page.request.get('http://127.0.0.1:8002/api/v1/tasks/' + task_id + '/artifacts')).json())['items']
+            assert hashlib.sha256(raw).hexdigest() == next(a['sha256'] for a in entries if a['filename'] == 'result.json')
+            async with page.expect_download() as report_info:
+                await page.get_by_role('link', name='下载 report.json', exact=True).click()
+            report_raw = Path(await (await report_info.value).path()).read_bytes()
+            assert hashlib.sha256(report_raw).hexdigest() == next(a['sha256'] for a in entries if a['filename'] == 'report.json')
+            report = json.loads(report_raw)
+            assert report['task_id'] == task_id
+            if curl:
+                assert report['source'] == 'curl_import'
+            print(json.dumps(report, ensure_ascii=False))
             await page.reload()
             await expect(page.get_by_text('完整性验证通过', exact=False)).to_be_visible()
             assert page.url.endswith(task_id)
@@ -86,4 +111,8 @@ async def main(live=False):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--live', action='store_true')
-    asyncio.run(main(parser.parse_args().live))
+    parser.add_argument('--curl', action='store_true', help='With --live, verify cURL import instead of page observation')
+    args = parser.parse_args()
+    if args.curl and not args.live:
+        parser.error('--curl requires --live')
+    asyncio.run(main(args.live, args.curl))

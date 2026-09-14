@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "attempt": 1,
+      "error_code": "pointer_not_found",
+      "error_category": "PLAN_SEMANTIC",
+      "failure_phase": "analyzing",
+      "collection_started": false,
+      "original_plan_hash": "7f084e9e55ac7aeb84ae402bb0920bf53d993dcdde252a32ba170f3b04d37563",
+      "candidate_plan_hash": "9c9ad0a8eef032e07d250f3f0b098807d905c0975dfaeafc886365c964d56d9e",
+      "modified_fields": [
+        "items_pointer"
+      ],
+      "reason_code": "repairable",
+      "validation_result": "valid",
+      "rejection_code": null,
+      "outcome": "deferred"
+    }
+  ],
+  "proposals": [
+    {
+      "original_plan_hash": "7f084e9e55ac7aeb84ae402bb0920bf53d993dcdde252a32ba170f3b04d37563",
+      "candidate_plan_hash": "9c9ad0a8eef032e07d250f3f0b098807d905c0975dfaeafc886365c964d56d9e",
+      "modified_fields": [
+        "items_pointer"
+      ],
+      "reason_code": "pointer_relocated",
+      "validation_result": "valid",
+      "outcome": "proposed"
+    }
+  ],
+  "original_plan_hash": "7f084e9e55ac7aeb84ae402bb0920bf53d993dcdde252a32ba170f3b04d37563",
+  "candidate_plan_hash": "9c9ad0a8eef032e07d250f3f0b098807d905c0975dfaeafc886365c964d56d9e",
+  "applied": true,
+  "execution_result": {
+    "status": "succeeded",
+    "count": 1,
+    "pages": 1,
+    "completeness": "complete"
+  }
+}

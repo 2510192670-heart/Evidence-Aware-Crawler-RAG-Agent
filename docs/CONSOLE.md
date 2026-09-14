@@ -51,7 +51,7 @@ frontend/dist 是生成文件，不纳入源码。若后端启动时尚未构建
 
 第二项要求本地控制台已运行，拦截 API 使用模拟数据，验证空状态、创建、RAG 参数、运行中按钮禁用、取消、断网与重试，不消耗模型额度。只有显式添加 --live 才会通过实际页面创建一次云端任务并下载结果。
 
-2026-09-13：80 项 Python 测试通过，TypeScript 检查与 Vite 构建通过。真实浏览器任务 331e5451-0be5-46c3-b953-3bab62d84ecd 完成并下载 30 条数据，刷新后选择保留。浏览器无未捕获脚本异常。
+2026-09-13：250 项 Python 测试通过，TypeScript 检查与 Vite 构建通过。真实浏览器任务 331e5451-0be5-46c3-b953-3bab62d84ecd 完成并下载 30 条数据，刷新后选择保留；cURL 导入闭环复测见 CURL_IMPORT.md。浏览器无未捕获脚本异常。
 
 内置浏览器工具返回 ERR_BLOCKED_BY_CLIENT，因此使用 Playwright Chromium 验证。检查了 1505×1045 概念原始尺寸和 1280×800 笔记本尺寸。早期手机检查不作为交付要求；用户已明确只在电脑使用。
 
@@ -70,6 +70,6 @@ frontend/dist 是生成文件，不纳入源码。若后端启动时尚未构建
 
 已按概念的布局和视觉方向核对实现；上述差异为真实功能和数据所需，没有把生成图片作为界面。没有宣称像素级一致。
 
-下一阶段：增加多种本地测试接口与固定评测集，比较规则、模型、模型加 RAG 的正确率、完整率、token 与耗时。当前产品仍只支持本机 GET 页码分页，不是通用网站爬取工具。
+下一阶段：增加多种本地测试接口与固定评测集，比较规则、模型、模型加 RAG 的正确率、完整率、token 与耗时。当前能力：GET query 与 POST JSON body 页码分页；cURL 导入支持 GET 与受限 POST(JSON)，导入请求元数据（method/request_body）经任务编排透传到采集；成功任务导出确定性 collector.py（GET/POST 各一套模板）；评测清单 S2（POST JSON）已标记 `supported`。产品仍不是通用网站爬取工具。
 
 实现依据：[Vite 静态构建](https://vite.dev/guide/static-deploy.html)、[Vue Router hash 模式](https://router.vuejs.org/guide/essentials/history-mode.html)。

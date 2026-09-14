@@ -1,0 +1,57 @@
+{
+  "task": "Select a real request and map these requested fields for page-number collection. Use JSON Pointers. Page numbers start at 1 and increment by 1. Set pagination_location to the observed page-number location: \"query\" for GET, \"json_body\" for a POST JSON body. Values in response_shape or request_body_shape are type placeholders, not actual response values. Reference cases are hints only; actual observations take precedence. Never invent paths or parameters from a case.",
+  "requested_fields": [
+    "id"
+  ],
+  "observations": [
+    {
+      "request_id": "req_001",
+      "method": "GET",
+      "status": 200,
+      "query": {
+        "page": "1"
+      },
+      "response_shape": {
+        "items": [
+          {
+            "id": "<integer>"
+          }
+        ],
+        "total": "<integer>",
+        "other": [
+          {
+            "id": "<integer>"
+          }
+        ]
+      }
+    }
+  ],
+  "reference_cases": [
+    {
+      "id": "page_items",
+      "title": "顶层列表与明确结束标记",
+      "terms": [
+        "page",
+        "items",
+        "has_next",
+        "total"
+      ],
+      "guidance": "For a page-number GET response with items, has_next and total: inspect /items, /has_next and /total. Map each requested field relative to an actual item. Use only query parameters present in the observed request. Verify total and unique identifiers across pages.",
+      "score": 3.405262
+    },
+    {
+      "id": "rows_more",
+      "title": "别名字段映射",
+      "terms": [
+        "p",
+        "rows",
+        "sku",
+        "title",
+        "more",
+        "total"
+      ],
+      "guidance": "A rows array may use sku and title where the requested outputs are id and name. Confirm observed types and meaning before mapping. The page parameter may be p. Use /more or /total only when present. Never copy an example request identifier.",
+      "score": 0.520824
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "observation": {
+    "request_id": "req_001",
+    "url": "http://127.0.0.1:8100/items",
+    "method": "GET",
+    "query": {
+      "page": "1"
+    },
+    "request_body": null,
+    "body": {
+      "items": [
+        {
+          "id": 1
+        }
+      ],
+      "total": 1
+    },
+    "status": 200
+  },
+  "initial_plan": {
+    "request_id": "req_001",
+    "items_pointer": "/items",
+    "fields": {
+      "id": "/id"
+    },
+    "unique_key": "id",
+    "pagination_location": "query",
+    "page_parameter": "page",
+    "has_next_pointer": null,
+    "total_pointer": "/total"
+  },
+  "network_injection": false
+}

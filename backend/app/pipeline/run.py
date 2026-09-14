@@ -13,6 +13,7 @@ from playwright.async_api import Error as BrowserError
 
 from ..llm.config import CloudConfig
 from ..llm.gateway import CloudGateway, GatewayError
+from ..rag.failure import build_failure_context, build_failure_retrieval
 from ..rag.retrieval import retrieve
 from .contracts import ExtractionPlan, cloud_summary, local_origin, plan_hash
 from .errors import PipelineError, classify
@@ -120,6 +121,7 @@ async def run_task(args, config, *, task_id=None, output_root=None, on_stage=Non
     plan = None
     execution_plan = None
     observations = []
+    summaries = None
     repair_state = {'attempts': [], 'proposals': [], 'original_plan_hash': None,
                     'candidate_plan_hash': None, 'execution_plan_hash': None,
                     'applied': False, 'repaired': 0, 'execution_result': None, 'audited_error': None}
@@ -133,8 +135,32 @@ async def run_task(args, config, *, task_id=None, output_root=None, on_stage=Non
         return next((item for item in observations
                      if plan is not None and item.request_id == plan.request_id), None)
 
+    def record_failure_retrieval(error):
+        """M5.3-A：失败分支的诊断型 re-retrieval（只读、无模型调用）。
+
+        复用内存中已有的脱敏摘要，不重新观察、不重新规划、不触达修复。结果只写入
+        additive 产物 ``failure_retrieval.json`` 作为解释证据，绝不回灌规划或修复。
+        """
+        if summaries is None or not getattr(args, 'rag_enabled', True):
+            return
+        try:
+            failure_context = build_failure_context(error)
+            if failure_context is None:
+                return
+            result = retrieve(summaries, enabled=True, failure_context=failure_context)
+            artifact = build_failure_retrieval(error, result)
+            if artifact is None:
+                return
+            save_json(folder / 'failure_retrieval.json', artifact)
+        except (OSError, ValueError):
+            # 诊断产物是补充证据：写入失败不得改变已确定的失败分类。
+            return
+        report['failure_retrieval'] = {'case_ids': artifact['case_ids'],
+                                       'knowledge_gate_applied': artifact['knowledge_gate']['applied']}
+
     def record_failure(error):
         """记录失败分类；有界修复驱动已审计过的失败不重复审计。"""
+        record_failure_retrieval(error)
         report.update(status='failed', **failure_fields(error))
         if repair_state['audited_error'] is error:
             return

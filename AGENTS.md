@@ -637,7 +637,7 @@ Implemented:
 - M5.3-B integration validation
 - M5.3-C evaluation freeze
 
-Current milestone:
+Previous milestone:
 
 ## M5.3 Final Freeze
 
@@ -704,7 +704,35 @@ Success requires verification.
 
 # Current Milestone
 
-## M5.3 Final Freeze
+## M5.4 Final Freeze
+
+- M5.4-A: Trace Projection Foundation (`b247045`), implemented.
+- M5.4-B: Read-only Trace Viewer (`fca594d`), implemented.
+- M5.4-C: Showcase Polish, documentation prepared for acceptance; not yet frozen.
+
+The milestone name is the freeze target, not a claim that acceptance or tagging
+has completed. No M5.4 tag or commit is created by this documentation step.
+
+Trace read path:
+
+    task/events/artifacts -> projection -> GET API -> Viewer
+
+M5.4 guarantees:
+
+- no new LLM call
+- no execution change
+- no repair boundary change
+- no artifact schema break
+- advisory diagnosis only: no feedback into planning, execution or repair
+
+Trace is a read model over existing evidence, not a new artifact or a second
+source of truth. The viewer uses GET only; refresh never reruns a task.
+The LLM proposes the initial plan; repair proposals are deterministic code output.
+Missing evidence remains unknown. The timeline has four recorded stages only.
+
+M5.4-C scope: README.md, AGENTS.md, docs Markdown and showcase screenshots only.
+Do not change backend/frontend logic, tests, benchmarks, cases or artifact schemas.
+Evaluation status: docs/M5.4_EVALUATION_REPORT.md.
 
 Completed:
 

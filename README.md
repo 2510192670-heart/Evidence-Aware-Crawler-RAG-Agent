@@ -2,7 +2,7 @@
 
 本地采集工具 + DeepSeek Flash API。已实现浏览器观察、采集计划与校验、BM25 案例检索、SQLite 任务管理、电脑端 Vue 控制台、本地 cURL 导入预览（GET / 受限 POST JSON）、确定性 collector 导出，以及有限错误类型的确定性边界修复（bounded deterministic repair）。检索侧已升级为 observation-aware：包含确定性证据特征抽取（M5.1-A）、确定性 feature gate（M5.1-B，在 BM25 上做结构匹配过滤与轻量重排，不引入 embedding / 向量数据库 / reranker / 额外模型调用），以及确定性检索评估（M5.1-C，baseline BM25 与 feature gate 消融对照）。
 
-入口：http://127.0.0.1:8002/console/ 。使用方式见 [控制台说明](docs/CONSOLE.md)、[cURL 导入](docs/CURL_IMPORT.md)、[版本控制](docs/VERSION_CONTROL.md)。当前支持本机 GET query 页码分页与 POST JSON body 页码分页；cURL 导入支持 GET 与受限 POST(JSON)；成功任务会导出确定性 collector.py（GET 与 POST 各一套模板）。评测清单 S2（POST JSON）已标记 `supported`，评测基础与冻结数据集见 M4.1。有限错误类型的确定性边界修复（bounded deterministic repair）已落地：模型只提出修复 proposal，是否采纳与执行由 deterministic validation 控制，仅 `pointer_not_found` 会自动应用，`page_location_mismatch` 仅出 proposal，SECURITY / DATA_INTEGRITY / TRANSPORT / UNCLASSIFIED 一律拒绝。检索结果契约（M5.1 Final Freeze）保持 legacy 字段不变，仅 additive 追加 `feature_schema_version` / `query_features` / `gate`；关闭 RAG 时输出与旧契约完全一致。当前 352 项 Python 测试通过。
+入口：http://127.0.0.1:8002/console/ 。使用方式见 [控制台说明](docs/CONSOLE.md)、[cURL 导入](docs/CURL_IMPORT.md)、[版本控制](docs/VERSION_CONTROL.md)。当前支持本机 GET query 页码分页与 POST JSON body 页码分页；cURL 导入支持 GET 与受限 POST(JSON)；成功任务会导出确定性 collector.py（GET 与 POST 各一套模板）。评测清单 S2（POST JSON）已标记 `supported`，评测基础与冻结数据集见 M4.1。有限错误类型的确定性边界修复（bounded deterministic repair）已落地：模型只提出修复 proposal，是否采纳与执行由 deterministic validation 控制，仅 `pointer_not_found` 会自动应用，`page_location_mismatch` 仅出 proposal，SECURITY / DATA_INTEGRITY / TRANSPORT / UNCLASSIFIED 一律拒绝。检索结果契约（M5.1 Final Freeze）保持 legacy 字段不变，仅 additive 追加 `feature_schema_version` / `query_features` / `gate`；关闭 RAG 时输出与旧契约完全一致。当前 425 项 Python 测试通过。
 
 下面保留早期学习阶段的记录，涉及“尚未实现”或测试数量的表述仅代表当时状态。
 
@@ -120,6 +120,17 @@ M5.2 让 RAG 从“文本相似案例检索”演进为“结构化失败知识�
 需要明确：M5.2 **不是** automatic repair，**不是** execution self-healing，**只是** retrieval enhancement——它不修改执行计划，不改变 repair policy，`repair.py` 仍是可修复性的唯一权威。
 
 字段行为：默认冻结语料（v1）**不会**产生 `knowledge_gate`；只有 v2 knowledge corpus（携带 `failure_modes`）才会 additive 追加 `case_schema_version` / `knowledge_gate`。安全边界：SECURITY / DATA_INTEGRITY / TRANSPORT / UNCLASSIFIED 失败下不会推荐带 `auto_applied` 知识的案例。评估见 [M5.2 评估报告](docs/M5.2_EVALUATION_REPORT.md)。
+# 阶段更新：Runtime Failure-aware Diagnostic Retrieval (M5.3)
+
+M5.3 把 failure-aware knowledge retrieval 接入**失败分支的运行时**：任务失败后，用 `errors.classify()` 得到的失败上下文做一次确定性诊断型检索，并落成 additive 产物 `failure_retrieval.json`（`backend/app/rag/failure.py`）。
+
+能力：
+
+- `errors.classify()` → `failure_context`：错误码 / 类别 / 阶段全部来自 `errors.SPECS`，调用方无法伪造。
+- failure-aware retrieval：复用内存中已脱敏摘要，不重新观察。
+- `failure_retrieval.json`：additive 诊断产物，唯一新增文件，不改动 `retrieval.json` / `repair.json` 契约。
+
+明确：M5.3 **不是** automatic repair，**不是** execution self-healing，**不是** second planning；它**只是** deterministic diagnosis 与 audit enhancement——不修改执行计划、不改变 repair policy（`repair.py` 仍是唯一权威），也不产生第二次 LLM 调用。`UNCLASSIFIED` 失败与关闭 RAG 时 fail closed，不产出诊断产物。评估见 [M5.3 评估报告](docs/M5.3_EVALUATION_REPORT.md)。
 # 最新入口：电脑端控制台
 
-打开 http://127.0.0.1:8002/console/ ，直接创建任务、查看进度与历史、取消任务和下载结果。Vue 3 + TypeScript 控制台已接入真实 API；当前 389 项 Python 测试通过。见 [控制台操作与启动说明](docs/CONSOLE.md)。上方较早阶段的记录保留作开发过程参考。
+打开 http://127.0.0.1:8002/console/ ，直接创建任务、查看进度与历史、取消任务和下载结果。Vue 3 + TypeScript 控制台已接入真实 API；当前 425 项 Python 测试通过。见 [控制台操作与启动说明](docs/CONSOLE.md)。上方较早阶段的记录保留作开发过程参考。

@@ -627,11 +627,21 @@ Implemented:
 - M5.2-B failure-aware knowledge retrieval
 - M5.2-C evaluation and freeze evidence
 
+## M5.3
+
+Runtime failure-aware diagnostic retrieval
+
+Implemented:
+
+- M5.3-A runtime failure context bridge
+- M5.3-B integration validation
+- M5.3-C evaluation freeze
+
 Current milestone:
 
-## M5.2 Final Freeze
+## M5.3 Final Freeze
 
-M5.2 Final Freeze is complete.
+M5.3 Final Freeze is complete.
 
 - M5.0: Retrieval contract lock
 - M5.1: Observation-aware retrieval
@@ -642,11 +652,19 @@ M5.2 Final Freeze is complete.
 - M5.2-A: Case Knowledge v2 Loader
 - M5.2-B: Failure-aware Knowledge Retrieval
 - M5.2-C: Evaluation & Freeze Evidence
+- M5.3: Runtime failure-aware diagnostic retrieval
+- M5.3-A: Runtime failure context bridge
+- M5.3-B: Integration validation
+- M5.3-C: Evaluation & Freeze Evidence
 
-M5 not yet complete: a larger independent retrieval evaluation set, pipeline
+M5.3 wires an observed failure into `failure_context` on the failure branch and
+persists the additive, advisory-only `failure_retrieval.json` artifact. It is
+diagnosis, not repair: no second LLM call, no re-plan, no re-observe and no repair
+influence.
+
+M5 not yet complete: a larger independent retrieval evaluation set and pipeline
 activation of `field_mapping` (the running pipeline does not pass `fields` to
-`retrieve`), and wiring an observed failure into `failure_context` (the running
-pipeline does not pass it). The M6 rule / no-RAG / RAG comparison has not started.
+`retrieve`). The M6 rule / no-RAG / RAG comparison has not started.
 
 ---
 
@@ -686,7 +704,7 @@ Success requires verification.
 
 # Current Milestone
 
-## M5.2 Final Freeze
+## M5.3 Final Freeze
 
 Completed:
 
@@ -697,10 +715,17 @@ Completed:
 - M5.2-A Case Knowledge v2 Loader
 - M5.2-B Failure-aware Knowledge Retrieval
 - M5.2-C Evaluation & Freeze Evidence
+- M5.3-A runtime failure context bridge
+- M5.3-B integration validation
+- M5.3-C evaluation & freeze evidence
 
-Architecture:
+Retrieval architecture:
 
     BM25  ->  Feature Gate  ->  Failure-aware Ranking
+
+Failure-branch diagnostic flow (M5.3):
+
+    errors.classify()  ->  failure_context  ->  retrieve()  ->  failure_retrieval.json
 
 Retrieval result contract (additive only):
 
@@ -723,6 +748,11 @@ M5.2 additive keys (only when the corpus carries structured knowledge):
 - case_schema_version
 - knowledge_gate
 
+M5.3 additive artifact (failure branch only; `retrieval.json` unchanged):
+
+- `failure_retrieval.json` — schema_version, failure_context, failure_phase,
+  knowledge_gate, case_ids, corpus_sha256
+
 Safety guarantees:
 
 - deterministic; closed-vocabulary comparison; no LLM call, no IO
@@ -735,12 +765,17 @@ Safety guarantees:
   never recommend a case carrying `auto_applied` knowledge
 - RAG-off output is unchanged; the frozen corpus carries no knowledge fields, so
   legacy BM25 scores, ordering and the inactive gate are preserved
+- M5.3 diagnostic retrieval is advisory-only: it runs solely on the failure
+  branch, never re-plans, never re-observes, never executes and never influences
+  repair; `UNCLASSIFIED` failures and RAG-off fail closed (no artifact)
 
 Knowledge boundary:
 
 - `knowledge.py` reads `errors.SPECS` and the read-only repair policy constants
   only; it imports no execution, gateway or HTTP client
 - `failure_match` is pure: it calls no model, no repair driver and no executor
+- `failure.py` imports `..pipeline.errors` only; `failure_context` is sourced from
+  `errors.classify()` and cannot be forged by the caller
 
 Carried over from M4.4 repair boundary (unchanged):
 
@@ -762,6 +797,8 @@ Rejected:
 Safety guarantees:
 
 - no second LLM call
+- no re-plan and no re-observe
+- no repair influence: diagnostic retrieval is advisory only
 - no arbitrary code execution
 - no unlimited retry
 - no automatic security bypass
@@ -769,7 +806,10 @@ Safety guarantees:
 
 Known limitations:
 
-- `failure_context` is not yet wired into the production pipeline
-- the M5.2 evaluation is an in-repo fixture, not a benchmark
+- `failure_context` is wired only on the failure branch; the success path never
+  runs it and keeps the M5.2 artifact set
+- `failure_retrieval.json` is diagnostic evidence only; it does not feed planning
+  or repair and is not consumed by the executor
+- the M5.2 / M5.3 evaluations are in-repo fixtures, not benchmarks
 - `field_mapping` is not activated by the real `retrieve` call
 - no claim of a system-wide success-rate improvement is made

@@ -70,12 +70,13 @@ Set-Location E:\PaChongLLMragzuoping
 
 - `evidence.json`：请求 ID、参数变化、响应字段形状；不保存完整响应或请求头。
 - `cloud_payload.json`：实际交给模型的业务输入，可核查上传范围；系统 schema/格式指令由网关附加。
-- `retrieval.json`：BM25 + observation-aware feature gate + failure-aware knowledge 的检索结果。legacy 字段：`enabled`、`algorithm`、`corpus_version`、`corpus_sha256`、命中案例 `cases`。字段仅 additive：M5.1 追加 `feature_schema_version`、`query_features`、`gate`；M5.2 v2 knowledge corpus（携带 `failure_modes`）额外追加 `case_schema_version`、`knowledge_gate`。默认冻结语料（v1）不产生 knowledge 字段。关闭 RAG 时仅保留 legacy 字段且 `cases` 为空，输出与旧契约完全一致。补充：failure-aware 目前是**能力层**，尚未连接 `run.py` 的 production failure_context（生产任务中该阶段恒为中性）。
+- `retrieval.json`：BM25 + observation-aware feature gate + failure-aware knowledge 的检索结果。legacy 字段：`enabled`、`algorithm`、`corpus_version`、`corpus_sha256`、命中案例 `cases`。字段仅 additive：M5.1 追加 `feature_schema_version`、`query_features`、`gate`；M5.2 v2 knowledge corpus（携带 `failure_modes`）额外追加 `case_schema_version`、`knowledge_gate`。默认冻结语料（v1）不产生 knowledge 字段。关闭 RAG 时仅保留 legacy 字段且 `cases` 为空，输出与旧契约完全一致。补充：自 M5.3 起 failure-aware 已在**失败分支**接入 `run.py` 的 production `failure_context`（成功路径不受影响，仍为中性），诊断结果写入 `failure_retrieval.json`。
 - `plan.json`：模型提出的计划；是否验证成功以 report 为准。
 - `result.json`：成功采集的数据；部分采集也会保存，完整性见报告。
 - `collector.py`：由已验证计划与固定模板生成的独立采集脚本；`collector_result.json` 是它的运行结果，`collector_verification.json` 记录与内部结果的比对。
 - `report.json` / `report.md`：状态、条数、完整性、时间与用量；失败也生成报告。
 - `repair.json`：有界修复审计（attempts / proposals / application 与计划谱系哈希）；仅当本次任务发生过修复尝试时才生成，是增量产物，不改动 `plan.json` 等既有产物契约。
+- `failure_retrieval.json`：失败分支的诊断型检索证据（M5.3），只含闭集错误码、策展案例 ID 与哈希。生成条件需**同时**满足：`failure exists` **且** `RAG enabled` **且** `classified error`（非 `UNCLASSIFIED`）**且** `summaries available`。**成功任务不会生成**；关闭 RAG 时不生成。它是增量产物，不改动 `retrieval.json` / `repair.json` 契约，也不参与执行或修复。
 
 云输入使用类型占位符，如 `<string>`、`<integer>`；不传商品名称值、本机 origin、Cookie 或认证头。保留字段名和短数字查询值是为了推断分页；这一策略针对自建测试站，不等于任意网站的通用隐私脱敏器。
 

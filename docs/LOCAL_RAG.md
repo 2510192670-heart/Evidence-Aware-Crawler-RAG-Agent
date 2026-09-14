@@ -66,6 +66,28 @@ Failure-aware Ranking
 
 确定性评估见 tests/test_rag_failure_evaluation.py（A/B/C 三组消融）与 [M5.2 评估报告](M5.2_EVALUATION_REPORT.md)；评估为小样本 fixture，不是 benchmark。
 
+## M5.3 Runtime Failure-aware Diagnostic Retrieval
+
+M5.3 把 failure-aware 检索从“能力层”接到失败分支的运行时：任务失败后，`run.py` 用失败分类做一次只读诊断型检索，并写入 additive 产物 `failure_retrieval.json`。failure flow：
+
+```
+errors.classify()
+        ↓
+  failure_context
+        ↓
+     retrieve()
+        ↓
+failure_retrieval.json
+```
+
+- **只读**：复用内存中已脱敏摘要，不重新观察、不改计划、不触达修复。
+- **deterministic**：错误码 → 类别 / 阶段全部由 `errors.SPECS` 确定，调用方无法伪造；同输入结果 deep-equal。
+- **no LLM call**：不新增任何模型调用（任务 `model_calls` 恒为 1）。
+- **no repair influence**：`repair.py` 仍是可修复性的唯一权威；`repair.json` 不受影响，`retrieval.json` 契约不变。
+- **fail closed**：`UNCLASSIFIED` 失败与关闭 RAG 时不产出诊断产物；成功任务也不产出。
+
+评估见 [M5.3 评估报告](M5.3_EVALUATION_REPORT.md)（A/B/C/D 四组消融）。
+
 案例库只从代码仓库固定路径加载，不接受网页内容或任务产物自动入库。修改案例需人工审查、更新 corpus_version，并重新测试；文件摘要可识别实际版本。当前小型库同步加载，后续扩大时再缓存或转数据库。
 
 ## 验证记录（2026-09-13）

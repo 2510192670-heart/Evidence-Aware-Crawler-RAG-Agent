@@ -1,0 +1,129 @@
+{
+  "schema_version": 1,
+  "production_task": false,
+  "code_baseline": "643220810ad1e648b36bf3c69b2fc6313df5d283",
+  "generator_sha256": "a3684ef25ae28639f2c44204b3dcd656bd6ddc727ac365b49de4ef30e99b818a",
+  "limitations": [
+    "fixed fixture timestamps and elapsed time",
+    "planner/observation/HTTP/export doubles; no live provider",
+    "network_error is classified injection, not a real network incident"
+  ],
+  "cases": [
+    {
+      "id": "pointer_not_found/unresolved",
+      "source_type": "generated_integration_fixture",
+      "generated_by": "tests/helpers/m55_failure_fixtures.py",
+      "expected_artifacts": [
+        "cloud_payload.json",
+        "evidence.json",
+        "failure_retrieval.json",
+        "plan.json",
+        "repair.json",
+        "report.json",
+        "report.md",
+        "retrieval.json"
+      ],
+      "hashes": {
+        "cloud_payload.json": "a773a38bae889f2d9a9e800c3871ecc355f18f7797e9fcf081e3367f31b4d98a",
+        "evidence.json": "232959a1c1d1b612f15fd730c662bde0f01786706cd64e6899149d9712637d74",
+        "failure_retrieval.json": "18d441bd18a7dbf0b076704726a821b7a41189f593088cac127cb23d971b4818",
+        "plan.json": "b9cf1a8ca5745abd74320ed396709b1c94f99216872a90e50d02e950b776e919",
+        "repair.json": "8626d29c7d5c734e3fe160d3bcea12180b09f0078d6a29a8be984914c9299f57",
+        "report.json": "d44ab2839a4ccf6bc9a9bd2faf0a09300cd5c68166d88adc30f2f4a4fa2ef770",
+        "report.md": "13dc9fba201452766a32a2203df4f849856dfbbfc4964a1d9d4074de18e86071",
+        "retrieval.json": "47fe27e37d9dcbb401d5fed34917604b087b6472ab02dd4dfdc9bca619e2455f",
+        "task.json": "c2774e200581a209ece69cbd83fa06712d21d6a5aeda47097cd357194e4e0582",
+        "events.json": "8e0241754a12dbe2c786a4c3ccb08b84b92586baa40e7bca2f996c76f790d6a5",
+        "inputs.json": "0670238e427a9b2cb15792b7f8a480259e56fdf89a7dbf79879ea66d89488a7d",
+        "telemetry.json": "5aa9af4a8f77aed51e6c232846ca6cdd41b3967ab7c509c5282f2ed277f69bcf"
+      }
+    },
+    {
+      "id": "pointer_not_found/applied",
+      "source_type": "generated_integration_fixture",
+      "generated_by": "tests/helpers/m55_failure_fixtures.py",
+      "expected_artifacts": [
+        "cloud_payload.json",
+        "evidence.json",
+        "plan.json",
+        "repair.json",
+        "report.json",
+        "report.md",
+        "result.json",
+        "retrieval.json"
+      ],
+      "hashes": {
+        "cloud_payload.json": "a26d5b8bfe63d8240a0478d37a72f4b01e916148e7501676a8b5ca4e678481b1",
+        "evidence.json": "cc1f4be226319cdbca170b918741e1f05a793b394a45e90c1f3223380946d81d",
+        "plan.json": "b9cf1a8ca5745abd74320ed396709b1c94f99216872a90e50d02e950b776e919",
+        "repair.json": "c1167878edf767bdd5d7b88dc79a4141cf7dea4a27187de48c82b76495460d3a",
+        "report.json": "64100c257bc3d99b1023e8cec8e212264a6ccf85370c729b50f8a73901721d5e",
+        "report.md": "dcbcaef6fc19fcd454ecbc145de20b322c84f03660f0c896c340e522b572b219",
+        "result.json": "a9fca48e1678c4388348b6602f7fb03062be9c3e356889163d4929f06580e10b",
+        "retrieval.json": "7ecb034dbfa2884edcc4ab0e772b8c01731dc748c453d257ab1c2f4e7b549ae7",
+        "task.json": "07ddab13a5304165d5b239db9b7641f0cdbd0473840871428dfe6e116a2d728a",
+        "events.json": "456317f71da06fc0cd10f08ea8f0990de65f45cff1d41a636a28adb60484e9c7",
+        "inputs.json": "56450874a7bdac21f20e43be5cf0c5ee119e1dbb4b8cf59dad8fd9e0bb24cf55",
+        "telemetry.json": "455da6adde97942f317f334e69143f112affffcdf61d8e4c08e0fc43918f092d"
+      }
+    },
+    {
+      "id": "duplicate_id",
+      "source_type": "generated_integration_fixture",
+      "generated_by": "tests/helpers/m55_failure_fixtures.py",
+      "expected_artifacts": [
+        "cloud_payload.json",
+        "evidence.json",
+        "failure_retrieval.json",
+        "plan.json",
+        "repair.json",
+        "report.json",
+        "report.md",
+        "retrieval.json"
+      ],
+      "hashes": {
+        "cloud_payload.json": "a26d5b8bfe63d8240a0478d37a72f4b01e916148e7501676a8b5ca4e678481b1",
+        "evidence.json": "cc1f4be226319cdbca170b918741e1f05a793b394a45e90c1f3223380946d81d",
+        "failure_retrieval.json": "e8c951743afeb374b3cb85246b65d94aa47d4be1c984f681b82536ef48b39a32",
+        "plan.json": "2e090331d268cd4223ced44d10e44d758deb583c55c97d46aec4699d63968068",
+        "repair.json": "6aa22018702645ccc9acac801a5a86335694f057f1ad31388e71229b1bb92ac8",
+        "report.json": "c217cf043e0861d1367184231d7dbba5931f1d1c640531324afa225178da6300",
+        "report.md": "f039a9a389cd114f38d711610e11b1f46f4b708e72739af94e6692ae4491c72c",
+        "retrieval.json": "7ecb034dbfa2884edcc4ab0e772b8c01731dc748c453d257ab1c2f4e7b549ae7",
+        "task.json": "2cad4402a39467a3fd82386d06d2f1266962515e01b5ccb03c3a6af31dda9217",
+        "events.json": "8e0241754a12dbe2c786a4c3ccb08b84b92586baa40e7bca2f996c76f790d6a5",
+        "inputs.json": "feea74e2a2354909a9a4f52cc25e0cb154a8cfad91b8864b7d9ec45b564e51ca",
+        "telemetry.json": "f9cec27e2d34b9ace7ec2d939bd758fc6fe3e575a5754ffba8c3bf88ad948491"
+      }
+    },
+    {
+      "id": "network_error",
+      "source_type": "generated_integration_fixture",
+      "generated_by": "tests/helpers/m55_failure_fixtures.py",
+      "expected_artifacts": [
+        "cloud_payload.json",
+        "evidence.json",
+        "failure_retrieval.json",
+        "plan.json",
+        "repair.json",
+        "report.json",
+        "report.md",
+        "retrieval.json"
+      ],
+      "hashes": {
+        "cloud_payload.json": "a26d5b8bfe63d8240a0478d37a72f4b01e916148e7501676a8b5ca4e678481b1",
+        "evidence.json": "cc1f4be226319cdbca170b918741e1f05a793b394a45e90c1f3223380946d81d",
+        "failure_retrieval.json": "eafaa15047190cffda298c2ed6dc6d80aa350532bd43f5df3449805d458cd909",
+        "plan.json": "2e090331d268cd4223ced44d10e44d758deb583c55c97d46aec4699d63968068",
+        "repair.json": "dca217a5402d8f1ffc3d1fc249fde983c020af6113cc6b27a58fec1f24dd2db3",
+        "report.json": "6321d568aab59b4f7d153a7736c808c854f5c57eed30a7c5eb827b099b6adfb2",
+        "report.md": "238324ee62030917211e9f98d94e58582c7ae87d6fdce4733b57f9988dbfe929",
+        "retrieval.json": "7ecb034dbfa2884edcc4ab0e772b8c01731dc748c453d257ab1c2f4e7b549ae7",
+        "task.json": "bd8d0d3a778aba17ad275635d37c5792e1ec0480ec1e9ff59f8fe2efd6b41b37",
+        "events.json": "8e0241754a12dbe2c786a4c3ccb08b84b92586baa40e7bca2f996c76f790d6a5",
+        "inputs.json": "3b609f00bb457d46832804925618daf2819063d912745b8f8adde6f6298dd091",
+        "telemetry.json": "9b16451e370c9713b1bb5df38668b151f06311e5f45005ec233f53d0363faebc"
+      }
+    }
+  ]
+}

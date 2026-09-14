@@ -1,0 +1,42 @@
+{
+  "cases": [
+    {
+      "case": "pointer_not_found_failure",
+      "status": "NOT_AVAILABLE",
+      "reason": "no matching historical artifact"
+    },
+    {
+      "case": "bounded_repair_success",
+      "status": "NOT_AVAILABLE",
+      "reason": "no matching historical artifact"
+    },
+    {
+      "case": "duplicate_id_rejected",
+      "status": "NOT_AVAILABLE",
+      "reason": "no matching historical artifact"
+    }
+  ],
+  "supporting_evidence": [
+    {
+      "task_id": "fc56bf6c-4a0b-473a-8743-aa7d7e060cf0",
+      "source": "historical_real_task",
+      "artifact_refs": [
+        "tasks/fc56bf6c-4a0b-473a-8743-aa7d7e060cf0/evidence.json",
+        "tasks/fc56bf6c-4a0b-473a-8743-aa7d7e060cf0/report.json",
+        "tasks/fc56bf6c-4a0b-473a-8743-aa7d7e060cf0/retrieval.json"
+      ],
+      "sha256": {
+        "evidence.json": "3499d4367e6de3a605c127220226ca0a7d7424bee28bc7a9392bb70b7748d378",
+        "report.json": "6d384d0a0acc02fe65aeeeded804bab16c453ff75bc7e0438bf987d2021a49b0",
+        "retrieval.json": "5a1535aead3aaf257671bbb40cc6a5c459c6b3a687986b1f74dfaec094f3e762"
+      },
+      "model_calls": 2,
+      "verification_status": {
+        "timeline": "PASS",
+        "artifact_explorer": "PASS",
+        "failure_diagnosis": "NOT_AVAILABLE",
+        "repair_audit": "NOT_AVAILABLE"
+      }
+    }
+  ]
+}

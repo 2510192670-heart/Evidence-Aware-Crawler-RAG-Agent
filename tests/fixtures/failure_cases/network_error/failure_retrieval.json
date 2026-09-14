@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "failure_context": {
+    "error_code": "network_error",
+    "category": "TRANSPORT",
+    "phase": "executing"
+  },
+  "failure_phase": "execution",
+  "knowledge_gate": {
+    "applied": false,
+    "filtered": [],
+    "matched": [],
+    "conflicted": []
+  },
+  "case_ids": [
+    "page_items",
+    "rows_more"
+  ],
+  "corpus_sha256": "678f87ece8bdb0aa4171f5f80b6b289cd773215639b7e30d82dc4953f5cba1f2"
+}

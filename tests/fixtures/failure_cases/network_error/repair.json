@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "attempt": 1,
+      "error_code": "network_error",
+      "error_category": "TRANSPORT",
+      "failure_phase": "executing",
+      "collection_started": true,
+      "original_plan_hash": "9c9ad0a8eef032e07d250f3f0b098807d905c0975dfaeafc886365c964d56d9e",
+      "candidate_plan_hash": null,
+      "modified_fields": [],
+      "reason_code": null,
+      "validation_result": null,
+      "rejection_code": "not_repairable",
+      "outcome": "rejected"
+    }
+  ],
+  "proposals": [],
+  "original_plan_hash": "9c9ad0a8eef032e07d250f3f0b098807d905c0975dfaeafc886365c964d56d9e",
+  "candidate_plan_hash": null,
+  "applied": false,
+  "execution_result": {
+    "status": "failed",
+    "error": "network_error"
+  }
+}

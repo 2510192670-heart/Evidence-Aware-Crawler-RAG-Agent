@@ -1,9 +1,10 @@
-"""Frozen retrieval output contract and the M5.1 feature-schema interface.
+"""Retrieval output contract and the M5.1 / M5.2 additive interfaces.
 
 This module declares shapes and constants only: it does not extract features,
-rank cases or read case data. M5.1-B has landed, so the feature keys planned in
-M5.0 are now produced additively by ``retrieval.retrieve`` for enabled results;
-a disabled result still carries exactly :data:`LEGACY_RESULT_KEYS`.
+rank cases or read case data. M5.1-B appends feature keys; M5.2-B appends
+failure-aware knowledge keys -- but only when the corpus carries structured
+knowledge (``failure_modes``). A disabled result still carries exactly
+:data:`LEGACY_RESULT_KEYS`.
 """
 
 from typing import TypedDict
@@ -11,13 +12,17 @@ from typing import TypedDict
 # The only ranking algorithm allowed by the frozen M4.4 retrieval contract.
 ALGORITHM = 'BM25Okapi'
 
-# Keys every retrieval result has carried since before M5.0. M5.1 may add keys,
-# but must never rename or remove these.
+# Keys every retrieval result has carried since before M5.0. Later milestones may
+# add keys, but must never rename or remove these.
 LEGACY_RESULT_KEYS = ('enabled', 'algorithm', 'corpus_version', 'corpus_sha256', 'cases')
 
 # Additive keys M5.1-B appends to an enabled result. A disabled result carries
 # only :data:`LEGACY_RESULT_KEYS`, keeping the RAG-off output byte-compatible.
 FEATURE_RESULT_KEYS = ('feature_schema_version', 'query_features', 'gate')
+
+# Additive keys M5.2-B appends, and only when the corpus has structured knowledge,
+# so a version 1 corpus keeps the exact M5.1 result.
+KNOWLEDGE_RESULT_KEYS = ('case_schema_version', 'knowledge_gate')
 
 # Version of the evidence-feature schema.
 FEATURE_SCHEMA_VERSION = 1
@@ -57,8 +62,9 @@ class FeatureGate(TypedDict):
 class RetrievalResult(TypedDict):
     """The shape of ``retrieval.json``.
 
-    The legacy keys are always present; the M5.1 feature keys are appended only
-    for an enabled result.
+    The legacy keys are always present; the M5.1 feature keys are appended for an
+    enabled result; the M5.2 knowledge keys are appended only when the corpus
+    carries structured knowledge.
     """
 
     enabled: bool
@@ -69,3 +75,5 @@ class RetrievalResult(TypedDict):
     feature_schema_version: int
     query_features: QueryFeatures
     gate: FeatureGate
+    case_schema_version: int
+    knowledge_gate: FeatureGate

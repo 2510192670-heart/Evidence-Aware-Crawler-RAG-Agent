@@ -59,7 +59,7 @@ onMounted(poll);onUnmounted(()=>{alive=false;clearTimeout(timer)})
  <nav v-if="total>5" class="pagination" aria-label="历史分页"><button :disabled="page===1" @click="changePage(-1)">上一页</button><span>{{page}} / {{Math.ceil(total/5)}}</span><button :disabled="page*5>=total" @click="changePage(1)">下一页</button></nav>
  </section>
  <section class="panel"><h2>任务详情</h2><p v-if="!selected" class="empty">{{route.params.taskId?'正在加载任务…':'选择任务查看执行详情。'}}</p>
- <template v-else><div class="heading detail-heading"><div><strong>{{selected.id.slice(0,8)}}</strong> <span class="status" :class="selected.status">{{labels[selected.status]}}</span></div><button v-if="!terminal.includes(selected.status)" :disabled="pending||selected.status==='cancelling'" @click="cancel">取消任务</button><span v-else class="muted">{{date(selected.created_at)}}</span></div>
+ <template v-else><RouterLink :to="'/'+selected.id+'/trace'">查看 Task Trace →</RouterLink><div class="heading detail-heading"><div><strong>{{selected.id.slice(0,8)}}</strong> <span class="status" :class="selected.status">{{labels[selected.status]}}</span></div><button v-if="!terminal.includes(selected.status)" :disabled="pending||selected.status==='cancelling'" @click="cancel">取消任务</button><span v-else class="muted">{{date(selected.created_at)}}</span></div>
  <ol class="steps"><li v-for="(s,i) in stages" :key="s" :class="{done:reached(s)}"><span>{{reached(s)?'✓':i+1}}</span>{{stageNames[i]}}</li></ol>
  <div class="metrics"><div><b>{{summary?.count??'—'}}</b>条数据</div><div><b>{{summary?.pages??'—'}}</b>页</div><div><b>{{summary?.model_calls??'—'}}</b>次模型调用</div></div>
  <p v-if="summary?.error" class="alert" role="status">任务{{labels[selected.status]}}：{{summary.error}}</p>

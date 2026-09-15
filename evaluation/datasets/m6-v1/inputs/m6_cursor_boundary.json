@@ -1,0 +1,28 @@
+{
+  "endpoints": [
+    {
+      "method": "GET",
+      "query": {
+        "cursor": "start"
+      },
+      "request_body": null,
+      "request_id": "req_continuation",
+      "responses": [
+        {
+          "items": [
+            {
+              "id": 30,
+              "value": "thirty"
+            }
+          ],
+          "next_cursor": "continuation"
+        }
+      ],
+      "url": "http://127.0.0.1:18161/continuation"
+    }
+  ],
+  "fields": [
+    "id",
+    "value"
+  ]
+}

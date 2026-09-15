@@ -1,0 +1,372 @@
+{
+  "$defs": {
+    "Failure": {
+      "additionalProperties": false,
+      "properties": {
+        "allowed_codes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Allowed Codes",
+          "type": "array"
+        },
+        "classified": {
+          "title": "Classified",
+          "type": "boolean"
+        },
+        "exception_type": {
+          "anyOf": [
+            {
+              "const": "ValueError",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Exception Type"
+        },
+        "max_execution_requests": {
+          "maximum": 20,
+          "minimum": 0,
+          "title": "Max Execution Requests",
+          "type": "integer"
+        },
+        "phase": {
+          "anyOf": [
+            {
+              "enum": [
+                "observing",
+                "analyzing",
+                "executing",
+                "unknown"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Phase"
+        }
+      },
+      "required": [
+        "classified",
+        "allowed_codes",
+        "phase",
+        "max_execution_requests",
+        "exception_type"
+      ],
+      "title": "Failure",
+      "type": "object"
+    },
+    "Fixture": {
+      "additionalProperties": false,
+      "properties": {
+        "fixture_id": {
+          "pattern": "^[a-z][a-z0-9_]{1,63}$",
+          "title": "Fixture Id",
+          "type": "string"
+        },
+        "generator_version": {
+          "const": "m61-a-1",
+          "title": "Generator Version",
+          "type": "string"
+        },
+        "ref": {
+          "title": "Ref",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref",
+        "fixture_id",
+        "generator_version"
+      ],
+      "title": "Fixture",
+      "type": "object"
+    },
+    "Hashes": {
+      "additionalProperties": false,
+      "properties": {
+        "fixture": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Fixture",
+          "type": "string"
+        },
+        "oracle": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Oracle",
+          "type": "string"
+        },
+        "retrieval_labels": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Retrieval Labels",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fixture",
+        "oracle",
+        "retrieval_labels"
+      ],
+      "title": "Hashes",
+      "type": "object"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "injected_failure": {
+          "title": "Injected Failure",
+          "type": "boolean"
+        },
+        "injection": {
+          "enum": [
+            "none",
+            "response_drift",
+            "missing_items_pointer",
+            "unsupported_page_plan"
+          ],
+          "title": "Injection",
+          "type": "string"
+        },
+        "natural_failure": {
+          "const": false,
+          "title": "Natural Failure",
+          "type": "boolean"
+        },
+        "note": {
+          "title": "Note",
+          "type": "string"
+        },
+        "source": {
+          "const": "m6_authored",
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "natural_failure",
+        "injected_failure",
+        "injection",
+        "note"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    },
+    "Ref": {
+      "additionalProperties": false,
+      "properties": {
+        "ref": {
+          "title": "Ref",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref"
+      ],
+      "title": "Ref",
+      "type": "object"
+    },
+    "Repair": {
+      "additionalProperties": false,
+      "properties": {
+        "eligible": {
+          "title": "Eligible",
+          "type": "boolean"
+        },
+        "expected_applied": {
+          "title": "Expected Applied",
+          "type": "boolean"
+        },
+        "max_attempts": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Max Attempts",
+          "type": "integer"
+        },
+        "may_apply": {
+          "title": "May Apply",
+          "type": "boolean"
+        },
+        "policy_disposition": {
+          "enum": [
+            "none",
+            "auto_applied",
+            "proposal_only",
+            "rejected"
+          ],
+          "title": "Policy Disposition",
+          "type": "string"
+        },
+        "trigger_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Trigger Code"
+        }
+      },
+      "required": [
+        "trigger_code",
+        "policy_disposition",
+        "eligible",
+        "may_apply",
+        "expected_applied",
+        "max_attempts"
+      ],
+      "title": "Repair",
+      "type": "object"
+    },
+    "Request": {
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "enum": [
+            "GET",
+            "POST"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "ref": {
+          "title": "Ref",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref",
+        "method"
+      ],
+      "title": "Request",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "categories": {
+      "items": {
+        "enum": [
+          "collection",
+          "get",
+          "post",
+          "nested",
+          "alias",
+          "multiple_candidates",
+          "data_integrity",
+          "duplicate_id",
+          "total_changed",
+          "field_type_changed",
+          "empty_page_with_next",
+          "cursor",
+          "offset",
+          "unsupported",
+          "repair",
+          "pointer_not_found",
+          "applied",
+          "ambiguous",
+          "diagnostic",
+          "canary",
+          "proposal_only",
+          "budget_exhausted",
+          "unclassified"
+        ],
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Categories",
+      "type": "array"
+    },
+    "evidence_level": {
+      "const": "component_fixture",
+      "title": "Evidence Level",
+      "type": "string"
+    },
+    "expected_outcome": {
+      "enum": [
+        "success",
+        "expected_rejection",
+        "controlled_failure"
+      ],
+      "title": "Expected Outcome",
+      "type": "string"
+    },
+    "failure_expectation": {
+      "$ref": "#/$defs/Failure"
+    },
+    "family_id": {
+      "pattern": "^[a-z][a-z0-9_]{1,63}$",
+      "title": "Family Id",
+      "type": "string"
+    },
+    "fixture": {
+      "$ref": "#/$defs/Fixture"
+    },
+    "hashes": {
+      "$ref": "#/$defs/Hashes"
+    },
+    "id": {
+      "pattern": "^[a-z][a-z0-9_]{1,63}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "oracle": {
+      "$ref": "#/$defs/Ref"
+    },
+    "provenance": {
+      "$ref": "#/$defs/Provenance"
+    },
+    "repair_expectation": {
+      "$ref": "#/$defs/Repair"
+    },
+    "request": {
+      "$ref": "#/$defs/Request"
+    },
+    "retrieval_labels": {
+      "$ref": "#/$defs/Ref"
+    },
+    "split": {
+      "enum": [
+        "development",
+        "frozen_evaluation"
+      ],
+      "title": "Split",
+      "type": "string"
+    },
+    "supported": {
+      "title": "Supported",
+      "type": "boolean"
+    },
+    "version": {
+      "maximum": 1,
+      "minimum": 1,
+      "title": "Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "id",
+    "family_id",
+    "version",
+    "split",
+    "categories",
+    "evidence_level",
+    "supported",
+    "expected_outcome",
+    "fixture",
+    "request",
+    "oracle",
+    "retrieval_labels",
+    "failure_expectation",
+    "repair_expectation",
+    "provenance",
+    "hashes"
+  ],
+  "title": "Case",
+  "type": "object"
+}

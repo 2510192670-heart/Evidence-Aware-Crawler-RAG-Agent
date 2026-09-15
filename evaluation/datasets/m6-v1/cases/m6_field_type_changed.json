@@ -1,0 +1,59 @@
+{
+  "categories": [
+    "get",
+    "data_integrity",
+    "field_type_changed",
+    "diagnostic"
+  ],
+  "evidence_level": "component_fixture",
+  "expected_outcome": "expected_rejection",
+  "failure_expectation": {
+    "allowed_codes": [
+      "field_type_changed"
+    ],
+    "classified": true,
+    "exception_type": null,
+    "max_execution_requests": 2,
+    "phase": "executing"
+  },
+  "family_id": "flat_total_flag",
+  "fixture": {
+    "fixture_id": "m6_field_type_changed",
+    "generator_version": "m61-a-1",
+    "ref": "evaluation/datasets/m6-v1/inputs/m6_field_type_changed.json"
+  },
+  "hashes": {
+    "fixture": "ca29546a895bec705a1ddf8c6e37bd178d34d72d6640c16d2574e5714c168fe6",
+    "oracle": "1dace35c4842e93f43d2c8a7920b3fb6a14d2610c03e89f624806ee8aee9e91d",
+    "retrieval_labels": "54d72ae7d81257b68ccba6188e9b22abe1365d8e756130f846c851953c3eef6d"
+  },
+  "id": "m6_field_type_changed",
+  "oracle": {
+    "ref": "evaluation/datasets/m6-v1/oracles/m6_field_type_changed.json"
+  },
+  "provenance": {
+    "injected_failure": true,
+    "injection": "response_drift",
+    "natural_failure": false,
+    "note": "Authored evaluation source; no natural model failure and no production task.",
+    "source": "m6_authored"
+  },
+  "repair_expectation": {
+    "eligible": false,
+    "expected_applied": false,
+    "max_attempts": 0,
+    "may_apply": false,
+    "policy_disposition": "rejected",
+    "trigger_code": "field_type_changed"
+  },
+  "request": {
+    "method": "GET",
+    "ref": "evaluation/datasets/m6-v1/inputs/m6_field_type_changed.json"
+  },
+  "retrieval_labels": {
+    "ref": "evaluation/datasets/m6-v1/labels/m6_field_type_changed.json"
+  },
+  "split": "development",
+  "supported": true,
+  "version": 1
+}

@@ -1,0 +1,32 @@
+{
+  "completeness": "complete",
+  "expected_error_code": null,
+  "expected_error_phase": null,
+  "expected_exception_type": null,
+  "page_count": 2,
+  "record_count": 4,
+  "records": [
+    {
+      "id": 1,
+      "value": "alpha"
+    },
+    {
+      "id": 2,
+      "value": "beta"
+    },
+    {
+      "id": 3,
+      "value": "gamma"
+    },
+    {
+      "id": 4,
+      "value": "delta"
+    }
+  ],
+  "result_sha256": "940d80911aca9d4391f7fe1f471de98e3da52619f75eff44cdc65b6500825d25",
+  "schema": {
+    "id": "integer",
+    "value": "string"
+  },
+  "unique_key": "id"
+}

@@ -1,0 +1,24 @@
+{
+  "completeness": "complete",
+  "expected_error_code": null,
+  "expected_error_phase": null,
+  "expected_exception_type": null,
+  "page_count": 2,
+  "record_count": 2,
+  "records": [
+    {
+      "id": 10,
+      "value": "ten"
+    },
+    {
+      "id": 11,
+      "value": "eleven"
+    }
+  ],
+  "result_sha256": "f46dbc590118e5f802c1b468f7affa27339ddc9720be81f38d352ef32282f0d8",
+  "schema": {
+    "id": "integer",
+    "value": "string"
+  },
+  "unique_key": "id"
+}

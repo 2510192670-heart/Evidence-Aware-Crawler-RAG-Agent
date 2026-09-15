@@ -1,0 +1,56 @@
+{
+  "categories": [
+    "collection",
+    "get",
+    "canary"
+  ],
+  "evidence_level": "component_fixture",
+  "expected_outcome": "success",
+  "failure_expectation": {
+    "allowed_codes": [],
+    "classified": false,
+    "exception_type": null,
+    "max_execution_requests": 0,
+    "phase": null
+  },
+  "family_id": "flat_total_flag",
+  "fixture": {
+    "fixture_id": "m6_get_flat",
+    "generator_version": "m61-a-1",
+    "ref": "evaluation/datasets/m6-v1/inputs/m6_get_flat.json"
+  },
+  "hashes": {
+    "fixture": "1c1d684ac1f45f345469f5d96aa510d559b45e5dcc9aa52519545d651d6b2a85",
+    "oracle": "f99a29957b40c950db0d937efe8e834e5fa9b47446e3baff8a25fd76f2ebbc78",
+    "retrieval_labels": "605762c1cefb660d2fca2d20b3d593e22f1d883674954f1ccc167d787b1628ae"
+  },
+  "id": "m6_get_flat",
+  "oracle": {
+    "ref": "evaluation/datasets/m6-v1/oracles/m6_get_flat.json"
+  },
+  "provenance": {
+    "injected_failure": false,
+    "injection": "none",
+    "natural_failure": false,
+    "note": "Authored evaluation source; no natural model failure and no production task.",
+    "source": "m6_authored"
+  },
+  "repair_expectation": {
+    "eligible": false,
+    "expected_applied": false,
+    "max_attempts": 0,
+    "may_apply": false,
+    "policy_disposition": "none",
+    "trigger_code": null
+  },
+  "request": {
+    "method": "GET",
+    "ref": "evaluation/datasets/m6-v1/inputs/m6_get_flat.json"
+  },
+  "retrieval_labels": {
+    "ref": "evaluation/datasets/m6-v1/labels/m6_get_flat.json"
+  },
+  "split": "development",
+  "supported": true,
+  "version": 1
+}

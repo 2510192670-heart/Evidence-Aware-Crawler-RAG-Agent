@@ -1,0 +1,50 @@
+{
+  "endpoints": [
+    {
+      "method": "POST",
+      "query": {
+        "locale": "en"
+      },
+      "request_body": {
+        "filter": "active",
+        "page": 1
+      },
+      "request_id": "req_query",
+      "responses": [
+        {
+          "data": {
+            "more": true,
+            "rows": [
+              {
+                "code": 10,
+                "detail": {
+                  "label": "ten"
+                }
+              }
+            ],
+            "total": 2
+          }
+        },
+        {
+          "data": {
+            "more": false,
+            "rows": [
+              {
+                "code": 11,
+                "detail": {
+                  "label": "eleven"
+                }
+              }
+            ],
+            "total": 2
+          }
+        }
+      ],
+      "url": "http://127.0.0.1:18161/query"
+    }
+  ],
+  "fields": [
+    "id",
+    "value"
+  ]
+}

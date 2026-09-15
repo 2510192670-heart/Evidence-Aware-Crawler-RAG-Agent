@@ -1,0 +1,68 @@
+[
+  {
+    "guidance": "Use observed request semantics only; never invent a parameter or bypass validation.",
+    "id": "flat_get",
+    "terms": [
+      "page",
+      "items",
+      "total",
+      "more"
+    ],
+    "title": "GET total and next flag"
+  },
+  {
+    "guidance": "Use observed request semantics only; never invent a parameter or bypass validation.",
+    "id": "nested_get",
+    "terms": [
+      "page",
+      "payload",
+      "entries",
+      "count"
+    ],
+    "title": "Nested GET container"
+  },
+  {
+    "guidance": "Use observed request semantics only; never invent a parameter or bypass validation.",
+    "id": "nested_post",
+    "terms": [
+      "page",
+      "data",
+      "rows",
+      "more",
+      "total"
+    ],
+    "title": "JSON body paging"
+  },
+  {
+    "guidance": "Use observed request semantics only; never invent a parameter or bypass validation.",
+    "id": "candidate_get",
+    "terms": [
+      "page",
+      "items",
+      "total",
+      "more"
+    ],
+    "title": "Observed endpoint selection"
+  },
+  {
+    "guidance": "Use observed request semantics only; never invent a parameter or bypass validation.",
+    "id": "pointer_get",
+    "terms": [
+      "page",
+      "records",
+      "other"
+    ],
+    "title": "Observed direct-list pointer"
+  },
+  {
+    "guidance": "Use observed request semantics only; never invent a parameter or bypass validation.",
+    "id": "boundary",
+    "terms": [
+      "cursor",
+      "offset",
+      "next_cursor",
+      "next_offset"
+    ],
+    "title": "Unsupported continuation"
+  }
+]

@@ -1,0 +1,154 @@
+[
+  {
+    "id": "cursor_continuation",
+    "signature": {
+      "endpoints": [
+        {
+          "body_shape": [
+            "object",
+            [
+              "\"str\"",
+              "[\"array\", [\"[\\\"object\\\", [\\\"\\\\\\\"int\\\\\\\"\\\", \\\"\\\\\\\"str\\\\\\\"\\\"]]\"]]"
+            ]
+          ],
+          "method": "GET",
+          "paging": "cursor",
+          "query_present": true
+        }
+      ]
+    },
+    "split": "frozen_evaluation"
+  },
+  {
+    "id": "direct_list_pointer",
+    "signature": {
+      "endpoints": [
+        {
+          "body_shape": [
+            "object",
+            [
+              "\"int\"",
+              "[\"array\", [\"[\\\"object\\\", [\\\"\\\\\\\"int\\\\\\\"\\\", \\\"\\\\\\\"str\\\\\\\"\\\"]]\"]]"
+            ]
+          ],
+          "method": "GET",
+          "paging": "page_number",
+          "query_present": true
+        }
+      ]
+    },
+    "split": "frozen_evaluation"
+  },
+  {
+    "id": "flat_total_flag",
+    "signature": {
+      "endpoints": [
+        {
+          "body_shape": [
+            "object",
+            [
+              "\"bool\"",
+              "\"int\"",
+              "[\"array\", [\"[\\\"object\\\", [\\\"\\\\\\\"int\\\\\\\"\\\", \\\"\\\\\\\"str\\\\\\\"\\\"]]\"]]"
+            ]
+          ],
+          "method": "GET",
+          "paging": "page_number",
+          "query_present": true
+        }
+      ]
+    },
+    "split": "development"
+  },
+  {
+    "id": "get_multi_candidate",
+    "signature": {
+      "endpoints": [
+        {
+          "body_shape": [
+            "object",
+            [
+              "\"bool\"",
+              "\"int\"",
+              "[\"array\", [\"[\\\"object\\\", [\\\"\\\\\\\"int\\\\\\\"\\\", \\\"\\\\\\\"str\\\\\\\"\\\"]]\"]]"
+            ]
+          ],
+          "method": "GET",
+          "paging": "page_number",
+          "query_present": true
+        },
+        {
+          "body_shape": [
+            "object",
+            [
+              "\"int\"",
+              "\"str\""
+            ]
+          ],
+          "method": "GET",
+          "paging": "page_number",
+          "query_present": true
+        }
+      ]
+    },
+    "split": "frozen_evaluation"
+  },
+  {
+    "id": "get_nested_total_only",
+    "signature": {
+      "endpoints": [
+        {
+          "body_shape": [
+            "object",
+            [
+              "[\"object\", [\"\\\"int\\\"\", \"[\\\"array\\\", [\\\"[\\\\\\\"object\\\\\\\", [\\\\\\\"\\\\\\\\\\\\\\\"int\\\\\\\\\\\\\\\"\\\\\\\", \\\\\\\"[\\\\\\\\\\\\\\\"object\\\\\\\\\\\\\\\", [\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"str\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\"]]\\\\\\\"]]\\\"]]\"]]"
+            ]
+          ],
+          "method": "GET",
+          "paging": "page_number",
+          "query_present": true
+        }
+      ]
+    },
+    "split": "frozen_evaluation"
+  },
+  {
+    "id": "offset_continuation",
+    "signature": {
+      "endpoints": [
+        {
+          "body_shape": [
+            "object",
+            [
+              "\"str\"",
+              "[\"array\", [\"[\\\"object\\\", [\\\"\\\\\\\"int\\\\\\\"\\\", \\\"\\\\\\\"str\\\\\\\"\\\"]]\"]]"
+            ]
+          ],
+          "method": "GET",
+          "paging": "offset",
+          "query_present": true
+        }
+      ]
+    },
+    "split": "frozen_evaluation"
+  },
+  {
+    "id": "post_nested_with_query",
+    "signature": {
+      "endpoints": [
+        {
+          "body_shape": [
+            "object",
+            [
+              "[\"object\", [\"\\\"bool\\\"\", \"\\\"int\\\"\", \"[\\\"array\\\", [\\\"[\\\\\\\"object\\\\\\\", [\\\\\\\"\\\\\\\\\\\\\\\"int\\\\\\\\\\\\\\\"\\\\\\\", \\\\\\\"[\\\\\\\\\\\\\\\"object\\\\\\\\\\\\\\\", [\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"str\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\"]]\\\\\\\"]]\\\"]]\"]]"
+            ]
+          ],
+          "method": "POST",
+          "paging": "page_number",
+          "query_present": true
+        }
+      ]
+    },
+    "split": "frozen_evaluation"
+  }
+]

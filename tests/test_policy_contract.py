@@ -4,8 +4,9 @@
 1. loopback 模式（含 policy=None）check_target 逐字节委托 local_origin，
    包括其裸 ValueError 行为——既有调用方零漂移；
 2. public_http 模式的 allowlist/scheme/端口/query 判定确定性且 fail-closed；
-3. 冻结边界：backend 受 v0.5.4-freeze 字节级冻结，S1 不扩展 errors.SPECS；
-   新码经 classify() fail-closed 为 UNCLASSIFIED，复用既有码时分类照常生效。
+3. taxonomy 注册（S3.3-C2 起）：全部 runtime policy 码已注册进 errors.SPECS，
+   classify() 返回 SECURITY/TRANSPORT 且不可 repair/retry；未注册码仍 fail-closed
+   为 UNCLASSIFIED（fail-closed 行为本身保持不变）。
 
 本测试不发起任何网络请求、不做 DNS 解析、不依赖 fixtures、不修改任何冻结文件。
 """
@@ -244,17 +245,42 @@ def test_target_module_does_not_depend_on_pipeline_errors():
         assert not hasattr(module, 'PipelineError')
 
 
-def test_new_codes_are_deferred_and_fail_closed():
-    """S1 不改冻结的 errors.SPECS：新码未注册，classify 必须 fail-closed。
+# S3.3-C2 注册的完整 runtime policy 码映射（12 码，钉死类别/相位/策略）。
+RUNTIME_POLICY_CODES = {
+    'target_not_in_allowlist': Category.SECURITY,
+    'public_scheme_not_allowed': Category.SECURITY,
+    'unsupported_port': Category.SECURITY,
+    'policy_file_not_readable': Category.SECURITY,
+    'invalid_policy_file': Category.SECURITY,
+    'invalid_policy': Category.SECURITY,
+    'invalid_policy_reference': Category.SECURITY,
+    'policy_not_found': Category.SECURITY,
+    'robots_disallowed': Category.SECURITY,
+    'public_mode_not_enabled': Category.SECURITY,
+    'ssrf_ip_blocked': Category.SECURITY,
+    'target_resolution_failed': Category.TRANSPORT,
+}
 
-    S3 接入管线（里程碑批准解冻 backend）时，本测试随 SPECS 注册一起翻转：
-    新码应迁移为 PipelineError 并断言 SECURITY/observing。
-    """
-    for code in NEW_CODES:
-        assert code not in SPECS, code
+
+def test_runtime_policy_codes_registered():
+    """S1 预告的翻转点：新码已入 SPECS，classify 不再 UNCLASSIFIED。"""
+    assert set(NEW_CODES) <= set(RUNTIME_POLICY_CODES)
+    for code, category in RUNTIME_POLICY_CODES.items():
+        spec = SPECS[code]
+        assert spec.category is category, code
+        assert spec.repairable is False and spec.retryable is False, code
+        assert spec.phase == 'observing', code
+        assert spec.detail_keys == frozenset(), code       # host/ip/url/path 不得入详情
         classification = classify(TargetPolicyError(code))
-        assert classification.category is Category.UNCLASSIFIED, code
+        assert classification.category is category, code
         assert classification.repairable is False and classification.retryable is False, code
+
+
+def test_unregistered_codes_still_fail_closed():
+    """保留 fail-closed 行为：注册表之外的码永远 UNCLASSIFIED、不可 repair/retry。"""
+    classification = classify(TargetPolicyError('not_a_registered_policy_code'))
+    assert classification.category is Category.UNCLASSIFIED
+    assert classification.repairable is False and classification.retryable is False
 
 
 def test_reused_registered_codes_classify_as_security():

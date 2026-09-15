@@ -25,7 +25,6 @@ from backend.app.main import TaskInput, create_app
 from backend.app.pipeline import run as run_module
 from backend.app.policy import (AllowRule, TargetPolicy, TargetPolicyError,
                                 default_policy, policy_sha256)
-from backend.app.policy import errors as policy_errors
 from backend.app.pipeline.errors import Category, classify
 from backend.app.tasks import service as service_module
 from backend.app.tasks.service import pipeline_worker, resolve_policy
@@ -237,10 +236,9 @@ def test_api_rejects_inline_policy_object(tmp_path):
         assert response.json()['code'] == 'invalid_request'
 
 
-def test_adapter_codes_fail_closed_until_registered():
-    """S3.1 新码未入 SPECS：classify 必须 UNCLASSIFIED、不可 repair/retry。"""
+def test_adapter_codes_registered_as_security():
+    """S3.3-C2 翻转：三个 adapter 码已入 SPECS，classify 返回 SECURITY。"""
     for code in ('invalid_policy_reference', 'policy_not_found', 'public_mode_not_enabled'):
-        assert code not in policy_errors.__dict__      # 非本模块常量，仅字符串约定
         classification = classify(TargetPolicyError(code))
-        assert classification.category is Category.UNCLASSIFIED, code
+        assert classification.category is Category.SECURITY, code
         assert classification.repairable is False and classification.retryable is False, code

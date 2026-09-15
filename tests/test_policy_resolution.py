@@ -16,6 +16,7 @@ import json
 import httpx
 import pytest
 
+from backend.app.pipeline.errors import SPECS, Category, classify
 from backend.app.policy import TargetPolicyError
 from backend.app.policy.loader import load_policy_file
 from backend.app.policy.resolution import classify_ip_blocked, resolve_and_classify
@@ -110,6 +111,20 @@ def test_resolve_and_classify_never_uses_real_dns():
     with pytest.raises(TargetPolicyError) as excinfo:
         resolve_and_classify('c1.test', resolver)
     assert excinfo.value.code == 'ssrf_ip_blocked'
+
+
+def test_resolution_codes_classification():
+    """S3.3-C2：解析守卫两码已注册，classify 类别/策略钉死。"""
+    ssrf = classify(TargetPolicyError('ssrf_ip_blocked'))
+    assert ssrf.category is Category.SECURITY
+    assert ssrf.repairable is False and ssrf.retryable is False
+    resolution = classify(TargetPolicyError('target_resolution_failed'))
+    assert resolution.category is Category.TRANSPORT
+    assert resolution.repairable is False
+    # retryable 精确集合不变：解析失败不自动重试。
+    assert resolution.retryable is False
+    assert {code for code, spec in SPECS.items() if spec.retryable} == {
+        'connect_timeout', 'network_error'}
 
 
 # --- 2. loader -------------------------------------------------------------------

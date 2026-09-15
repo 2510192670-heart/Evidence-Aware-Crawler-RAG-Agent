@@ -13,6 +13,7 @@ from playwright.async_api import Error as BrowserError
 
 from ..llm.config import CloudConfig
 from ..llm.gateway import CloudGateway, GatewayError
+from ..policy import TargetPolicyError, default_policy
 from ..rag.failure import build_failure_context, build_failure_retrieval
 from ..rag.retrieval import retrieve
 from .contracts import ExtractionPlan, cloud_summary, local_origin, plan_hash
@@ -107,7 +108,13 @@ async def execute_with_bounded_repair(client, plan, observations, max_pages, rec
         return execution_plan, collected
 
 
-async def run_task(args, config, *, task_id=None, output_root=None, on_stage=None, quiet=False):
+async def run_task(args, config, *, task_id=None, output_root=None, on_stage=None, quiet=False,
+                   policy=None):
+    # M7-A S3.1：策略只来自服务端可信注册表（显式 kwarg 或 spec 注入的 args.policy）；
+    # 两者都缺省时回落默认 loopback，既有调用方行为逐字节不变。
+    policy = policy if policy is not None else getattr(args, 'policy', None)
+    if policy is None:
+        policy = default_policy()
     task_id = task_id or str(uuid.uuid4())
     # 注入 ID 由任务服务生成；对目录使用的 ID 再进行严格规范化。
     task_id = str(uuid.UUID(task_id))
@@ -175,6 +182,9 @@ async def run_task(args, config, *, task_id=None, output_root=None, on_stage=Non
 
     try:
         async with asyncio.timeout(180):
+            if policy.mode != 'loopback':
+                # S3.1 只接通策略传递链；公网执行在 S3.2 才开放（fail-closed）。
+                raise TargetPolicyError('public_mode_not_enabled')
             await stage('observing', '1/3 观察本机页面和翻页请求…')
             imported_url = getattr(args, 'imported_url', None)
             if imported_url:

@@ -1,9 +1,33 @@
 import asyncio
 import json
+import re
 from types import SimpleNamespace
 
 from ..pipeline.run import run_task, save_json
+from ..policy import TargetPolicy, TargetPolicyError, default_policy, policy_sha256
+from ..policy.enforcement import check_target as enforce_check_target
 from ..storage.repository import BusyError, TERMINAL
+
+# policy 引用只有一种合法形态：已注册策略的内容寻址 sha256（小写 hex）。
+POLICY_REFERENCE_PATTERN = re.compile(r'[0-9a-f]{64}')
+
+
+def resolve_policy(reference, policies=()):
+    """policy 引用 → TargetPolicy；来源必须是服务端可信注册表。
+
+    None 表示默认 loopback 策略（旧任务行为不变）。前端不能构造规则：请求只能
+    携带部署侧预注册策略的 sha256 引用，本函数是策略解析的唯一闸门，非法引用
+    与未注册引用分别以稳定码拒绝（fail-closed，未注册进 SPECS 前 classify 为
+    UNCLASSIFIED）。
+    """
+    if reference is None:
+        return default_policy()
+    if not isinstance(reference, str) or not POLICY_REFERENCE_PATTERN.fullmatch(reference):
+        raise TargetPolicyError('invalid_policy_reference')
+    for policy in policies:
+        if policy_sha256(policy) == reference:
+            return policy
+    raise TargetPolicyError('policy_not_found')
 
 
 async def pipeline_worker(spec, config, task_id, root, stage):
@@ -11,16 +35,20 @@ async def pipeline_worker(spec, config, task_id, root, stage):
                            max_pages=spec['max_pages'], click_text=spec['click_text'],
                            rag_enabled=spec.get('rag_enabled', True), imported_url=spec.get('imported_url'),
                            imported_method=spec.get('imported_method', 'GET'),
-                           imported_request_body=spec.get('imported_request_body'))
+                           imported_request_body=spec.get('imported_request_body'),
+                           # submit() 已把服务端解析出的策略注入 spec；缺省回落 loopback。
+                           policy=TargetPolicy(**spec['policy']) if spec.get('policy') else None)
     await run_task(args, config, task_id=task_id, output_root=root, on_stage=stage, quiet=True)
     return json.loads((root / 'tasks' / task_id / 'report.json').read_text(encoding='utf-8'))
 
 
 class TaskService:
-    def __init__(self, repository, config_factory, worker=pipeline_worker):
+    def __init__(self, repository, config_factory, worker=pipeline_worker, policies=()):
         self.repo = repository
         self.config_factory = config_factory
         self.worker = worker
+        # 服务端可信策略注册表（部署配置构造，非请求数据）。
+        self.policies = tuple(policies)
         self.handles = {}
         self.lock = asyncio.Lock()
 
@@ -28,6 +56,19 @@ class TaskService:
         async with self.lock:
             if any(not task.done() for task in self.handles.values()):
                 raise BusyError('task_already_running')
+            policy = resolve_policy(spec.get('policy_sha256'), self.policies)
+            try:
+                # S3.2-B1 任务创建 admission：唯一权威目标判定，只调用 enforcement
+                # 层（委托单一真源），此处不复制任何 allowlist/scheme/IP 规则。
+                enforce_check_target(spec['url'], policy)
+            except TargetPolicyError:
+                raise
+            except ValueError as error:
+                # loopback 委托产生的旧码字符串（如 only_literal_loopback_http_supported）：
+                # 码原样保留，仅在 API 边界包装进策略错误通道以便稳定映射。
+                raise TargetPolicyError(str(error)) from None
+            # 规范化策略随 spec 持久化（tasks.spec JSON 列），形成任务级审计链。
+            spec = {**spec, 'policy': policy.model_dump(mode='json')}
             config = self.config_factory()
             row = await asyncio.to_thread(self.repo.create, spec, config.model)
             task_id = row['id']

@@ -17,6 +17,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from .llm.config import CloudConfig
 from .pipeline.contracts import local_origin, has_sensitive_keys, SENSITIVE
 from .pipeline.curl_import import parse_curl, checked_url
+from .policy import TargetPolicyError
 from .storage.instance_lock import InstanceLock
 from .storage.repository import Repository, BusyError, TERMINAL, ARTIFACT_NAMES
 from .tasks.service import TaskService, pipeline_worker
@@ -38,6 +39,9 @@ class TaskInput(BaseModel):
     # 复用 curl_import 已解析的请求元数据；不再二次解析原始 cURL 文本。
     imported_method: str = Field(default='GET', max_length=8)
     imported_request_body: dict | None = Field(default=None)
+    # M7-A S3.1：只允许引用服务端预注册策略的内容寻址 sha256；None 表示 loopback。
+    # 用户不能直接提交 policy 对象（extra='forbid' 拒绝任何未声明键，含 'policy'）。
+    policy_sha256: str | None = Field(default=None, max_length=64)
 
     @field_validator('imported_url')
     @classmethod
@@ -62,13 +66,24 @@ class TaskInput(BaseModel):
             raise ValueError('sensitive_imported_body')
         return self
 
-    @field_validator('url')
-    @classmethod
-    def check_url(cls, value):
-        local_origin(value)
-        if urlsplit(value).query:
+    @model_validator(mode='after')
+    def check_url(self):
+        """入口 URL 准入（S3.2-B1）。
+
+        无 policy 引用时保持旧的 loopback-only 判定，行为与字节级冻结前完全一致；
+        携带 policy 引用时只做结构预检（scheme/主机形态），权威目标判定在服务端
+        admission（service.submit → enforcement.check_target）。本校验器不复制
+        allowlist/端口/IP 任何规则——全系统只有一套目标判定。
+        """
+        if self.policy_sha256 is None:
+            local_origin(self.url)
+        else:
+            parsed = urlsplit(self.url)
+            if parsed.scheme not in {'http', 'https'} or not parsed.hostname:
+                raise ValueError('invalid_url')
+        if urlsplit(self.url).query:
             raise ValueError('entry_query_not_supported')
-        return value
+        return self
 
     @field_validator('fields')
     @classmethod
@@ -94,7 +109,8 @@ def error_body(code, task_id=None):
     return {'code': code, 'message': code, 'task_id': task_id, 'retryable': False}
 
 
-def create_app(data_dir=None, config_factory=CloudConfig.deepseek_from_env, worker=pipeline_worker, console_directory=None):
+def create_app(data_dir=None, config_factory=CloudConfig.deepseek_from_env, worker=pipeline_worker, console_directory=None,
+               policies=()):
     root = Path(data_dir).resolve() if data_dir is not None else Path(__file__).resolve().parents[2] / 'data'
 
     @asynccontextmanager
@@ -104,7 +120,8 @@ def create_app(data_dir=None, config_factory=CloudConfig.deepseek_from_env, work
         try:
             await asyncio.to_thread(repo.initialize)
             await asyncio.to_thread(repo.recover)
-            service = TaskService(repo, config_factory, worker)
+            # policies 是部署级可信注册表；请求侧只能以 sha256 引用其中条目。
+            service = TaskService(repo, config_factory, worker, policies=policies)
             app.state.repo, app.state.service = repo, service
             try:
                 yield
@@ -160,6 +177,9 @@ def create_app(data_dir=None, config_factory=CloudConfig.deepseek_from_env, work
             return await app.state.service.submit(spec.model_dump())
         except BusyError:
             raise APIError(409, 'task_already_running') from None
+        except TargetPolicyError as error:
+            # 必须排在 ValueError 之前：TargetPolicyError 是 ValueError 子类。
+            raise APIError(422, error.code) from None
         except ValueError:
             raise APIError(503, 'model_not_configured') from None
 

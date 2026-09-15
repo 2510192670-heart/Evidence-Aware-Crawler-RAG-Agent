@@ -1,0 +1,60 @@
+{
+  "categories": [
+    "get",
+    "repair",
+    "pointer_not_found",
+    "ambiguous",
+    "diagnostic"
+  ],
+  "evidence_level": "component_fixture",
+  "expected_outcome": "controlled_failure",
+  "failure_expectation": {
+    "allowed_codes": [
+      "pointer_not_found"
+    ],
+    "classified": true,
+    "exception_type": null,
+    "max_execution_requests": 0,
+    "phase": "analyzing"
+  },
+  "family_id": "direct_list_pointer",
+  "fixture": {
+    "fixture_id": "m6_pointer_ambiguous",
+    "generator_version": "m61-a-1",
+    "ref": "evaluation/datasets/m6-v1/inputs/m6_pointer_ambiguous.json"
+  },
+  "hashes": {
+    "fixture": "dcd1de152dcb5f256ddd0484ebe548d6243e58946c09455dc42cf89932068d43",
+    "oracle": "6a3e10c93c72dbb10dbc26bf1a3a95b7879318f52d6f0cde5da294af1e6adc86",
+    "retrieval_labels": "1fc72deabf868618ac577bd0a2db0b4bb8b670e36548dfcd5615206fc621b02c"
+  },
+  "id": "m6_pointer_ambiguous",
+  "oracle": {
+    "ref": "evaluation/datasets/m6-v1/oracles/m6_pointer_ambiguous.json"
+  },
+  "provenance": {
+    "injected_failure": true,
+    "injection": "missing_items_pointer",
+    "natural_failure": false,
+    "note": "Authored evaluation source; no natural model failure and no production task.",
+    "source": "m6_authored"
+  },
+  "repair_expectation": {
+    "eligible": true,
+    "expected_applied": false,
+    "max_attempts": 1,
+    "may_apply": true,
+    "policy_disposition": "auto_applied",
+    "trigger_code": "pointer_not_found"
+  },
+  "request": {
+    "method": "GET",
+    "ref": "evaluation/datasets/m6-v1/inputs/m6_pointer_ambiguous.json"
+  },
+  "retrieval_labels": {
+    "ref": "evaluation/datasets/m6-v1/labels/m6_pointer_ambiguous.json"
+  },
+  "split": "frozen_evaluation",
+  "supported": true,
+  "version": 1
+}

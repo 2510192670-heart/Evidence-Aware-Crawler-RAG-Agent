@@ -1,0 +1,59 @@
+{
+  "categories": [
+    "get",
+    "data_integrity",
+    "duplicate_id",
+    "diagnostic"
+  ],
+  "evidence_level": "component_fixture",
+  "expected_outcome": "expected_rejection",
+  "failure_expectation": {
+    "allowed_codes": [
+      "duplicate_id"
+    ],
+    "classified": true,
+    "exception_type": null,
+    "max_execution_requests": 2,
+    "phase": "executing"
+  },
+  "family_id": "flat_total_flag",
+  "fixture": {
+    "fixture_id": "m6_duplicate_id",
+    "generator_version": "m61-a-1",
+    "ref": "evaluation/datasets/m6-v1/inputs/m6_duplicate_id.json"
+  },
+  "hashes": {
+    "fixture": "909814791ff963f6ed1a0e83b50a8445862a4fa3ba08a0b02a51d62bab63f93d",
+    "oracle": "1527bcc4b294bcfef2ac5f31c6dba143e1133103fcb01926095df0bf36388af3",
+    "retrieval_labels": "54d72ae7d81257b68ccba6188e9b22abe1365d8e756130f846c851953c3eef6d"
+  },
+  "id": "m6_duplicate_id",
+  "oracle": {
+    "ref": "evaluation/datasets/m6-v1/oracles/m6_duplicate_id.json"
+  },
+  "provenance": {
+    "injected_failure": true,
+    "injection": "response_drift",
+    "natural_failure": false,
+    "note": "Authored evaluation source; no natural model failure and no production task.",
+    "source": "m6_authored"
+  },
+  "repair_expectation": {
+    "eligible": false,
+    "expected_applied": false,
+    "max_attempts": 0,
+    "may_apply": false,
+    "policy_disposition": "rejected",
+    "trigger_code": "duplicate_id"
+  },
+  "request": {
+    "method": "GET",
+    "ref": "evaluation/datasets/m6-v1/inputs/m6_duplicate_id.json"
+  },
+  "retrieval_labels": {
+    "ref": "evaluation/datasets/m6-v1/labels/m6_duplicate_id.json"
+  },
+  "split": "development",
+  "supported": true,
+  "version": 1
+}

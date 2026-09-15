@@ -1,0 +1,7 @@
+{
+  "failure_relevant_case_ids": [],
+  "rationale": "Authored from request structure and failure policy before retrieval; not derived from rank.",
+  "relevant_case_ids": [
+    "boundary"
+  ]
+}

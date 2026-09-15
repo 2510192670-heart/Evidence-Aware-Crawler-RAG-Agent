@@ -1,0 +1,45 @@
+{
+  "endpoints": [
+    {
+      "method": "GET",
+      "query": {
+        "page": "1"
+      },
+      "request_body": null,
+      "request_id": "req_inventory",
+      "responses": [
+        {
+          "payload": {
+            "count": 2,
+            "entries": [
+              {
+                "key": 20,
+                "meta": {
+                  "text": "twenty"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "payload": {
+            "count": 2,
+            "entries": [
+              {
+                "key": 21,
+                "meta": {
+                  "text": "twenty_one"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "url": "http://127.0.0.1:18161/inventory"
+    }
+  ],
+  "fields": [
+    "id",
+    "value"
+  ]
+}

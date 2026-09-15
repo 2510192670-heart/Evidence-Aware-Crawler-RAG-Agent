@@ -1,0 +1,48 @@
+{
+  "endpoints": [
+    {
+      "method": "GET",
+      "query": {
+        "page": "1"
+      },
+      "request_body": null,
+      "request_id": "req_listing",
+      "responses": [
+        {
+          "items": [
+            {
+              "id": 1,
+              "value": "alpha"
+            },
+            {
+              "id": 2,
+              "value": "beta"
+            }
+          ],
+          "more": true,
+          "secret": "M6_CANARY_SECRET_001",
+          "total": 4
+        },
+        {
+          "items": [
+            {
+              "id": 3,
+              "value": "gamma"
+            },
+            {
+              "id": 4,
+              "value": "delta"
+            }
+          ],
+          "more": false,
+          "total": 4
+        }
+      ],
+      "url": "http://127.0.0.1:18161/listing"
+    }
+  ],
+  "fields": [
+    "id",
+    "value"
+  ]
+}

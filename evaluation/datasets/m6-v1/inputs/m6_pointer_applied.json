@@ -1,0 +1,28 @@
+{
+  "endpoints": [
+    {
+      "method": "GET",
+      "query": {
+        "page": "1"
+      },
+      "request_body": null,
+      "request_id": "req_records",
+      "responses": [
+        {
+          "records": [
+            {
+              "id": 40,
+              "value": "forty"
+            }
+          ],
+          "total": 1
+        }
+      ],
+      "url": "http://127.0.0.1:18161/records"
+    }
+  ],
+  "fields": [
+    "id",
+    "value"
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "categories": [
+    "get",
+    "unsupported",
+    "offset",
+    "unclassified",
+    "diagnostic"
+  ],
+  "evidence_level": "component_fixture",
+  "expected_outcome": "expected_rejection",
+  "failure_expectation": {
+    "allowed_codes": [],
+    "classified": false,
+    "exception_type": "ValueError",
+    "max_execution_requests": 0,
+    "phase": "unknown"
+  },
+  "family_id": "offset_continuation",
+  "fixture": {
+    "fixture_id": "m6_offset_boundary",
+    "generator_version": "m61-a-1",
+    "ref": "evaluation/datasets/m6-v1/inputs/m6_offset_boundary.json"
+  },
+  "hashes": {
+    "fixture": "eeae59ccb92c099367542cc501cfe6167de20bcad6c5ba8574c54188d5f8b4d5",
+    "oracle": "5ff29305bdea23f349e21654c59a9a09203562a01b603979aebca39c347c0840",
+    "retrieval_labels": "f3cd2d11cada331800b3fc8419e823a95e25c9095f1e0ffa3a7dc8ef38a2361a"
+  },
+  "id": "m6_offset_boundary",
+  "oracle": {
+    "ref": "evaluation/datasets/m6-v1/oracles/m6_offset_boundary.json"
+  },
+  "provenance": {
+    "injected_failure": true,
+    "injection": "unsupported_page_plan",
+    "natural_failure": false,
+    "note": "Authored evaluation source; no natural model failure and no production task.",
+    "source": "m6_authored"
+  },
+  "repair_expectation": {
+    "eligible": false,
+    "expected_applied": false,
+    "max_attempts": 0,
+    "may_apply": false,
+    "policy_disposition": "none",
+    "trigger_code": null
+  },
+  "request": {
+    "method": "GET",
+    "ref": "evaluation/datasets/m6-v1/inputs/m6_offset_boundary.json"
+  },
+  "retrieval_labels": {
+    "ref": "evaluation/datasets/m6-v1/labels/m6_offset_boundary.json"
+  },
+  "split": "frozen_evaluation",
+  "supported": false,
+  "version": 1
+}

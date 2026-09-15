@@ -1,0 +1,58 @@
+{
+  "categories": [
+    "get",
+    "repair",
+    "pointer_not_found",
+    "applied",
+    "diagnostic"
+  ],
+  "evidence_level": "component_fixture",
+  "expected_outcome": "success",
+  "failure_expectation": {
+    "allowed_codes": [],
+    "classified": false,
+    "exception_type": null,
+    "max_execution_requests": 0,
+    "phase": null
+  },
+  "family_id": "direct_list_pointer",
+  "fixture": {
+    "fixture_id": "m6_pointer_applied",
+    "generator_version": "m61-a-1",
+    "ref": "evaluation/datasets/m6-v1/inputs/m6_pointer_applied.json"
+  },
+  "hashes": {
+    "fixture": "5faf62b98d8005849b5a9d17efdf88bc5e10dc3d7b1e0fa41d80906d49776fc3",
+    "oracle": "2d0f8d34aa3a74f7be90a0c44f7a15fc0053640b79aa4c31b8644f621dfe3e9c",
+    "retrieval_labels": "1fc72deabf868618ac577bd0a2db0b4bb8b670e36548dfcd5615206fc621b02c"
+  },
+  "id": "m6_pointer_applied",
+  "oracle": {
+    "ref": "evaluation/datasets/m6-v1/oracles/m6_pointer_applied.json"
+  },
+  "provenance": {
+    "injected_failure": true,
+    "injection": "missing_items_pointer",
+    "natural_failure": false,
+    "note": "Authored evaluation source; no natural model failure and no production task.",
+    "source": "m6_authored"
+  },
+  "repair_expectation": {
+    "eligible": true,
+    "expected_applied": true,
+    "max_attempts": 1,
+    "may_apply": true,
+    "policy_disposition": "auto_applied",
+    "trigger_code": "pointer_not_found"
+  },
+  "request": {
+    "method": "GET",
+    "ref": "evaluation/datasets/m6-v1/inputs/m6_pointer_applied.json"
+  },
+  "retrieval_labels": {
+    "ref": "evaluation/datasets/m6-v1/labels/m6_pointer_applied.json"
+  },
+  "split": "frozen_evaluation",
+  "supported": true,
+  "version": 1
+}

@@ -1,0 +1,154 @@
+[
+  {
+    "failure_modes": [
+      {
+        "category": "DATA_INTEGRITY",
+        "code": "duplicate_id",
+        "phase": "executing",
+        "signal": "observed_failure"
+      },
+      {
+        "category": "DATA_INTEGRITY",
+        "code": "total_changed",
+        "phase": "executing",
+        "signal": "observed_failure"
+      },
+      {
+        "category": "DATA_INTEGRITY",
+        "code": "field_type_changed",
+        "phase": "executing",
+        "signal": "observed_failure"
+      },
+      {
+        "category": "DATA_INTEGRITY",
+        "code": "empty_page_with_next",
+        "phase": "executing",
+        "signal": "observed_failure"
+      }
+    ],
+    "features": {
+      "method": "GET",
+      "page_location": "query"
+    },
+    "guidance": "Use observed request semantics only; never invent a parameter or bypass validation.",
+    "id": "flat_get",
+    "repairability": {
+      "duplicate_id": "rejected",
+      "empty_page_with_next": "rejected",
+      "field_type_changed": "rejected",
+      "total_changed": "rejected"
+    },
+    "terms": [
+      "page",
+      "items",
+      "total",
+      "more"
+    ],
+    "title": "GET total and next flag"
+  },
+  {
+    "failure_modes": [],
+    "features": {
+      "items_container": "nested",
+      "method": "GET",
+      "page_location": "query"
+    },
+    "guidance": "Use observed request semantics only; never invent a parameter or bypass validation.",
+    "id": "nested_get",
+    "repairability": {},
+    "terms": [
+      "page",
+      "payload",
+      "entries",
+      "count"
+    ],
+    "title": "Nested GET container"
+  },
+  {
+    "failure_modes": [
+      {
+        "category": "PLAN_SEMANTIC",
+        "code": "page_location_mismatch",
+        "phase": "analyzing",
+        "signal": "observed_failure"
+      }
+    ],
+    "features": {
+      "items_container": "nested",
+      "method": "POST",
+      "page_location": "json_body"
+    },
+    "guidance": "Use observed request semantics only; never invent a parameter or bypass validation.",
+    "id": "nested_post",
+    "repairability": {
+      "page_location_mismatch": "proposal_only"
+    },
+    "terms": [
+      "page",
+      "data",
+      "rows",
+      "more",
+      "total"
+    ],
+    "title": "JSON body paging"
+  },
+  {
+    "failure_modes": [],
+    "features": {
+      "method": "GET",
+      "page_location": "query"
+    },
+    "guidance": "Use observed request semantics only; never invent a parameter or bypass validation.",
+    "id": "candidate_get",
+    "repairability": {},
+    "terms": [
+      "page",
+      "items",
+      "total",
+      "more"
+    ],
+    "title": "Observed endpoint selection"
+  },
+  {
+    "failure_modes": [
+      {
+        "category": "PLAN_SEMANTIC",
+        "code": "pointer_not_found",
+        "phase": "analyzing",
+        "signal": "observed_failure"
+      }
+    ],
+    "features": {
+      "method": "GET",
+      "page_location": "query"
+    },
+    "guidance": "Use observed request semantics only; never invent a parameter or bypass validation.",
+    "id": "pointer_get",
+    "repairability": {
+      "pointer_not_found": "auto_applied"
+    },
+    "terms": [
+      "page",
+      "records",
+      "other"
+    ],
+    "title": "Observed direct-list pointer"
+  },
+  {
+    "failure_modes": [],
+    "features": {
+      "method": "GET",
+      "page_location": "query"
+    },
+    "guidance": "Use observed request semantics only; never invent a parameter or bypass validation.",
+    "id": "boundary",
+    "repairability": {},
+    "terms": [
+      "cursor",
+      "offset",
+      "next_cursor",
+      "next_offset"
+    ],
+    "title": "Unsupported continuation"
+  }
+]

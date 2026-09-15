@@ -1,0 +1,560 @@
+{
+  "$defs": {
+    "Category": {
+      "enum": [
+        "SECURITY",
+        "OBSERVATION",
+        "PLAN_SEMANTIC",
+        "DATA_INTEGRITY",
+        "TRANSPORT",
+        "MODEL_OUTPUT",
+        "BUDGET",
+        "UNCLASSIFIED"
+      ],
+      "title": "Category",
+      "type": "string"
+    },
+    "ExposureEvent": {
+      "additionalProperties": false,
+      "description": "One exposure audit entry: closed to three enums so no PII is representable.",
+      "properties": {
+        "event": {
+          "enum": [
+            "authored",
+            "reviewed",
+            "audited",
+            "filled",
+            "scored",
+            "downgraded_from_held"
+          ],
+          "title": "Event",
+          "type": "string"
+        },
+        "phase": {
+          "enum": [
+            "m61_a",
+            "m61_b1",
+            "m61_b2",
+            "m61_b3",
+            "m61_b4",
+            "m61_b5",
+            "m61_b6",
+            "m61_b7",
+            "m61_c"
+          ],
+          "title": "Phase",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "dataset_author",
+            "harness_author",
+            "auditor",
+            "independent_author",
+            "scorer"
+          ],
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "phase",
+        "event"
+      ],
+      "title": "ExposureEvent",
+      "type": "object"
+    },
+    "FailureExpectationV2": {
+      "additionalProperties": false,
+      "description": "Terminal-failure expectation; ``occurs`` separates a return from a raise.\n\nV1 inferred this from ``expected_outcome``, which cannot express a partial\npage budget: that outcome neither succeeds nor raises.",
+      "properties": {
+        "allowed_codes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Allowed Codes",
+          "type": "array"
+        },
+        "category": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Category"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "classified": {
+          "title": "Classified",
+          "type": "boolean"
+        },
+        "exception_type": {
+          "anyOf": [
+            {
+              "const": "ValueError",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Exception Type"
+        },
+        "max_execution_requests": {
+          "maximum": 20,
+          "minimum": 0,
+          "title": "Max Execution Requests",
+          "type": "integer"
+        },
+        "occurs": {
+          "title": "Occurs",
+          "type": "boolean"
+        },
+        "phase": {
+          "anyOf": [
+            {
+              "enum": [
+                "observing",
+                "analyzing",
+                "executing",
+                "unknown"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Phase"
+        }
+      },
+      "required": [
+        "occurs",
+        "classified",
+        "allowed_codes",
+        "category",
+        "phase",
+        "exception_type",
+        "max_execution_requests"
+      ],
+      "title": "FailureExpectationV2",
+      "type": "object"
+    },
+    "FixtureV2": {
+      "additionalProperties": false,
+      "properties": {
+        "fixture_id": {
+          "pattern": "^[a-z][a-z0-9_]{1,63}$",
+          "title": "Fixture Id",
+          "type": "string"
+        },
+        "generator_version": {
+          "const": "m61-b1-1",
+          "title": "Generator Version",
+          "type": "string"
+        },
+        "ref": {
+          "title": "Ref",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref",
+        "fixture_id",
+        "generator_version"
+      ],
+      "title": "FixtureV2",
+      "type": "object"
+    },
+    "Hashes": {
+      "additionalProperties": false,
+      "properties": {
+        "fixture": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Fixture",
+          "type": "string"
+        },
+        "oracle": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Oracle",
+          "type": "string"
+        },
+        "retrieval_labels": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Retrieval Labels",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fixture",
+        "oracle",
+        "retrieval_labels"
+      ],
+      "title": "Hashes",
+      "type": "object"
+    },
+    "ProposalOutcome": {
+      "description": "Disposition of a deterministic candidate proposal (never an execution).",
+      "enum": [
+        "proposed",
+        "rejected"
+      ],
+      "title": "ProposalOutcome",
+      "type": "string"
+    },
+    "ProposalReason": {
+      "description": "Closed registry of deterministic proposal grounds; never model-provided.",
+      "enum": [
+        "page_location_from_evidence",
+        "pointer_relocated",
+        "no_deterministic_candidate"
+      ],
+      "title": "ProposalReason",
+      "type": "string"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "injected_failure": {
+          "title": "Injected Failure",
+          "type": "boolean"
+        },
+        "injection": {
+          "enum": [
+            "none",
+            "response_drift",
+            "missing_items_pointer",
+            "unsupported_page_plan"
+          ],
+          "title": "Injection",
+          "type": "string"
+        },
+        "natural_failure": {
+          "const": false,
+          "title": "Natural Failure",
+          "type": "boolean"
+        },
+        "note": {
+          "title": "Note",
+          "type": "string"
+        },
+        "source": {
+          "const": "m6_authored",
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "natural_failure",
+        "injected_failure",
+        "injection",
+        "note"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    },
+    "Ref": {
+      "additionalProperties": false,
+      "properties": {
+        "ref": {
+          "title": "Ref",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref"
+      ],
+      "title": "Ref",
+      "type": "object"
+    },
+    "RepairExpectationV2": {
+      "additionalProperties": false,
+      "description": "Bounded-repair expectation bound directly to the production enums.\n\n``expected_proposal_outcome is None`` means no proposal object exists at all\n(an ineligible failure never reaches the proposer), which is a different fact\nfrom a proposal that exists and was rejected for want of a candidate.",
+      "properties": {
+        "eligible": {
+          "title": "Eligible",
+          "type": "boolean"
+        },
+        "expected_applied": {
+          "title": "Expected Applied",
+          "type": "boolean"
+        },
+        "expected_attempt_outcome": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RepairOutcome"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "expected_proposal_outcome": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProposalOutcome"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "expected_proposal_reason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProposalReason"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "expected_rejection_reason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RepairReason"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "max_attempts": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Max Attempts",
+          "type": "integer"
+        },
+        "may_apply": {
+          "title": "May Apply",
+          "type": "boolean"
+        },
+        "policy_disposition": {
+          "enum": [
+            "none",
+            "auto_applied",
+            "proposal_only",
+            "rejected"
+          ],
+          "title": "Policy Disposition",
+          "type": "string"
+        },
+        "trigger_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Trigger Code"
+        }
+      },
+      "required": [
+        "trigger_code",
+        "policy_disposition",
+        "eligible",
+        "expected_rejection_reason",
+        "expected_proposal_outcome",
+        "expected_proposal_reason",
+        "expected_attempt_outcome",
+        "may_apply",
+        "expected_applied",
+        "max_attempts"
+      ],
+      "title": "RepairExpectationV2",
+      "type": "object"
+    },
+    "RepairOutcome": {
+      "description": "Disposition of one audited repair attempt.",
+      "enum": [
+        "rejected",
+        "deferred"
+      ],
+      "title": "RepairOutcome",
+      "type": "string"
+    },
+    "RepairReason": {
+      "description": "Closed registry of repair policy decisions; never model-provided.",
+      "enum": [
+        "repairable",
+        "unclassified",
+        "not_repairable",
+        "repair_budget_exhausted",
+        "collection_started",
+        "missing_original_plan"
+      ],
+      "title": "RepairReason",
+      "type": "string"
+    },
+    "Request": {
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "enum": [
+            "GET",
+            "POST"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "ref": {
+          "title": "Ref",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref",
+        "method"
+      ],
+      "title": "Request",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "categories": {
+      "items": {
+        "enum": [
+          "collection",
+          "get",
+          "post",
+          "nested",
+          "alias",
+          "multiple_candidates",
+          "data_integrity",
+          "duplicate_id",
+          "total_changed",
+          "field_type_changed",
+          "empty_page_with_next",
+          "cursor",
+          "offset",
+          "unsupported",
+          "repair",
+          "pointer_not_found",
+          "applied",
+          "ambiguous",
+          "diagnostic",
+          "canary",
+          "proposal_only",
+          "budget_exhausted",
+          "unclassified"
+        ],
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Categories",
+      "type": "array"
+    },
+    "evidence_level": {
+      "const": "component_fixture",
+      "title": "Evidence Level",
+      "type": "string"
+    },
+    "expected_outcome": {
+      "enum": [
+        "success",
+        "partial_boundary",
+        "expected_rejection",
+        "controlled_failure"
+      ],
+      "title": "Expected Outcome",
+      "type": "string"
+    },
+    "exposure": {
+      "enum": [
+        "author_exposed",
+        "held"
+      ],
+      "title": "Exposure",
+      "type": "string"
+    },
+    "exposure_history": {
+      "items": {
+        "$ref": "#/$defs/ExposureEvent"
+      },
+      "minItems": 1,
+      "title": "Exposure History",
+      "type": "array"
+    },
+    "failure_expectation": {
+      "$ref": "#/$defs/FailureExpectationV2"
+    },
+    "family_id": {
+      "pattern": "^[a-z][a-z0-9_]{1,63}$",
+      "title": "Family Id",
+      "type": "string"
+    },
+    "fixture": {
+      "$ref": "#/$defs/FixtureV2"
+    },
+    "hashes": {
+      "$ref": "#/$defs/Hashes"
+    },
+    "id": {
+      "pattern": "^[a-z][a-z0-9_]{1,63}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "oracle": {
+      "$ref": "#/$defs/Ref"
+    },
+    "provenance": {
+      "$ref": "#/$defs/Provenance"
+    },
+    "repair_expectation": {
+      "$ref": "#/$defs/RepairExpectationV2"
+    },
+    "request": {
+      "$ref": "#/$defs/Request"
+    },
+    "retrieval_labels": {
+      "$ref": "#/$defs/Ref"
+    },
+    "split": {
+      "enum": [
+        "development",
+        "author_exposed_evaluation",
+        "future_held_evaluation"
+      ],
+      "title": "Split",
+      "type": "string"
+    },
+    "supported": {
+      "title": "Supported",
+      "type": "boolean"
+    },
+    "version": {
+      "maximum": 2,
+      "minimum": 2,
+      "title": "Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "id",
+    "family_id",
+    "version",
+    "split",
+    "categories",
+    "evidence_level",
+    "supported",
+    "expected_outcome",
+    "exposure",
+    "exposure_history",
+    "fixture",
+    "request",
+    "oracle",
+    "retrieval_labels",
+    "failure_expectation",
+    "repair_expectation",
+    "provenance",
+    "hashes"
+  ],
+  "title": "CaseV2",
+  "type": "object"
+}

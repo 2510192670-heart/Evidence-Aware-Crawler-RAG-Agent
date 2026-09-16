@@ -5,6 +5,8 @@ from urllib.parse import parse_qsl, urlsplit, urlunsplit
 
 from playwright.async_api import async_playwright
 
+from ..policy.enforcement import check_target as policy_check_target
+from ..policy.resolution import resolve_and_classify
 from .contracts import Observation, SENSITIVE, has_sensitive_keys, local_origin
 
 MAX_BODY_BYTES = 256 * 1024
@@ -46,8 +48,31 @@ def request_json_object(headers, post_data: str | None) -> dict | None:
     return value
 
 
-async def observe(url: str, click_text: str | None = '下一页') -> list[Observation]:
-    origin = local_origin(url)
+def route_permitted(url: str, origin: str, policy=None) -> bool:
+    """浏览器逐请求拦截的纯判定（提取为函数以便离线矩阵测试）。
+
+    loopback（含 policy=None）：保持原判式 local_origin(url) == origin，逐字节等价。
+    public：仅允许与入口 origin 同源——比 allowlist 更严，第三方子资源（CDN/
+    统计/字体）一律 fail-closed abort；子请求的 query 是正常形态，判定用去
+    query/path 的 origin 形态进行，不套用入口 URL 的 entry-query 限制。
+    方法规则（GET / 同源 JSON POST）仍由调用方叠加，本函数不复制。
+    """
+    try:
+        if policy is None or policy.mode == 'loopback':
+            return local_origin(url) == origin
+        parts = urlsplit(url)
+        candidate = urlunsplit((parts.scheme, parts.netloc, '', '', ''))
+        return policy_check_target(candidate, policy) == origin
+    except ValueError:
+        return False
+
+
+async def observe(url: str, click_text: str | None = '下一页', *, policy=None,
+                  resolver=None) -> list[Observation]:
+    origin = policy_check_target(url, policy)
+    if policy is not None and policy.mode == 'public_http':
+        # 公网入口 SSRF 准入：启动浏览器之前完成解析分类（fail-closed，零浏览器副作用）。
+        resolve_and_classify(urlsplit(url).hostname, resolver)
     if urlsplit(url).query:
         raise ValueError('entry_url_query_not_supported')
     records = []
@@ -104,10 +129,7 @@ async def observe(url: str, click_text: str | None = '下一页') -> list[Observ
 
                 async def route_request(route):
                     request = route.request
-                    try:
-                        permitted = local_origin(request.url) == origin
-                    except ValueError:
-                        permitted = False
+                    permitted = route_permitted(request.url, origin, policy)
                     if permitted:
                         # 边界只放宽到「同源 JSON POST」：表单、multipart 与其他方法继续阻断。
                         permitted = request.method == 'GET' or (

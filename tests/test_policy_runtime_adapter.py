@@ -5,8 +5,8 @@ A. TaskInput 无 policy → 全链路回落 loopback 默认策略（旧行为不
 B. TaskInput 携带服务端注册策略的 sha256 引用 → runtime 收到对应 TargetPolicy；
 C. 非法/未注册引用 → TargetPolicyError（稳定码），API 层映射 422。
 
-S3.1 边界：公网执行未开放——run_task 对非 loopback 策略以
-``public_mode_not_enabled`` fail-closed，且不触达观察/执行；
+S3.3-C3-B 起公网硬阻断（public_mode_not_enabled）已移除，由 run_task admission
+序列接管：公网策略 + loopback 入口 URL 仍以稳定码 fail-closed 且零 IO；
 policy 对象不可由请求体直接提交（extra='forbid'）。
 完全离线：stub worker / stub observe，不发网络请求，不启动浏览器。
 """
@@ -62,11 +62,11 @@ def wait_terminal(client, task_id):
 
 def run_task_report(tmp_path, monkeypatch, *, policy, observe_calls):
     """在 stub 观察下跑 run_task，返回 report.json 内容。"""
-    async def fake_observe(url, click_text=None):
+    async def fake_observe(url, click_text=None, **kwargs):
         observe_calls.append(url)
         raise ValueError('no_usable_json_requests')
 
-    async def fake_observe_imported(url, method='GET', request_body=None):
+    async def fake_observe_imported(url, method='GET', request_body=None, **kwargs):
         observe_calls.append(url)
         raise ValueError('no_usable_json_requests')
 
@@ -163,22 +163,24 @@ def test_pipeline_worker_rebuilds_args_policy(tmp_path, monkeypatch):
     assert seen['policy'] == PUBLIC_POLICY
 
 
-def test_run_task_rejects_public_policy_before_any_io(tmp_path, monkeypatch):
+def test_run_task_public_policy_admission_rejects_loopback_entry(tmp_path, monkeypatch):
+    """C3-B 翻转：硬阻断移除后，公网策略 + loopback 入口 URL 由 admission
+    的 check_target 拒绝（http 不在 https-only 策略内），仍然零观察/零 IO。"""
     calls = []
     report = run_task_report(tmp_path, monkeypatch, policy=PUBLIC_POLICY, observe_calls=calls)
-    # S3.1：公网策略在观察之前 fail-closed，绝不触达观察/执行。
     assert report['status'] == 'failed'
-    assert report['error'] == 'public_mode_not_enabled'
+    assert report['error'] == 'public_scheme_not_allowed'
     assert report['error_type'] == 'TargetPolicyError'
+    assert report['error_category'] == 'SECURITY'
     assert report['error_repairable'] is False and report['error_retryable'] is False
     assert calls == []
 
 
 def test_run_task_accepts_policy_via_args(tmp_path, monkeypatch):
-    """service 注入路径：args.policy（非显式 kwarg）同样生效。"""
+    """service 注入路径：args.policy（非显式 kwarg）同样被 admission 消费。"""
     calls = []
 
-    async def fake_observe(url, click_text=None):
+    async def fake_observe(url, click_text=None, **kwargs):
         calls.append(url)
         raise ValueError('no_usable_json_requests')
 
@@ -190,7 +192,8 @@ def test_run_task_accepts_policy_via_args(tmp_path, monkeypatch):
     assert asyncio.run(run_module.run_task(args, config(), task_id=task_id,
                                            output_root=tmp_path, quiet=True)) == 1
     report = json.loads((tmp_path / 'tasks' / task_id / 'report.json').read_text(encoding='utf-8'))
-    assert report['error'] == 'public_mode_not_enabled'
+    # 拒绝码来自公网判定 = args.policy 确被读取并生效。
+    assert report['error'] == 'public_scheme_not_allowed'
     assert calls == []
 
 

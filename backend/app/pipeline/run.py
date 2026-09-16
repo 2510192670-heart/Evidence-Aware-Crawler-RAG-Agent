@@ -6,6 +6,7 @@ from dataclasses import asdict
 import json
 from pathlib import Path
 import time
+from urllib.parse import urlsplit
 import uuid
 
 import httpx
@@ -13,7 +14,11 @@ from playwright.async_api import Error as BrowserError
 
 from ..llm.config import CloudConfig
 from ..llm.gateway import CloudGateway, GatewayError
-from ..policy import TargetPolicyError, default_policy
+from ..policy import default_policy
+from ..policy.enforcement import check_target as policy_check_target
+from ..policy.resolution import resolve_and_classify
+from ..policy.robots import RobotsPolicy
+from ..policy.transport import build_public_transport
 from ..rag.failure import build_failure_context, build_failure_retrieval
 from ..rag.retrieval import retrieve
 from .contracts import ExtractionPlan, cloud_summary, local_origin, plan_hash
@@ -21,7 +26,7 @@ from .errors import PipelineError, classify
 from .execution import execute_plan
 from .export import export_collector
 from .observe import observe
-from .curl_import import observe_imported
+from .curl_import import checked_url, observe_imported
 from .repair import (MAX_REPAIR_ATTEMPTS, ProposalOutcome, RepairApplication, RepairContext,
                      RepairProposer, audit_document, evaluate_failure, is_applicable)
 
@@ -30,6 +35,48 @@ def save_json(path: Path, value):
     temporary = path.with_suffix(path.suffix + '.tmp')
     temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False) + '\n', encoding='utf-8')
     temporary.replace(path)
+
+
+ROBOTS_MAX_BYTES = 64 * 1024
+
+
+def admit_public_entry(url: str, policy, *, imported: bool) -> str:
+    """公网入口目标判定（admission 序列第 1 步），返回规范化 origin。
+
+    浏览器入口走 check_target（保留 entry-query 限制）；导入入口走 curl_import
+    的 checked_url（query 是页码证据，凭证/fragment 照旧拒绝）。判定全部委托
+    enforcement 单一真源，本函数不复制任何规则。
+    """
+    if imported:
+        checked_url(url, policy)
+    else:
+        policy_check_target(url, policy)
+    parts = urlsplit(url)
+    return f'{parts.scheme}://{parts.netloc}'
+
+
+async def fetch_robots(origin: str, transport) -> RobotsPolicy:
+    """抓取 robots.txt：经守卫 transport（每请求重解析分类）；fail-closed。
+
+    404 = 无 robots 文件 = 无规则（RFC 9309 惯例，允许）；其他非 200、网络
+    异常、非法文本一律拒绝。安全类异常（如 ssrf_ip_blocked）不在此捕获，
+    以稳定码上抛。
+    """
+    try:
+        async with httpx.AsyncClient(trust_env=False, follow_redirects=False,
+                                     transport=transport) as client:
+            response = await client.get(origin + '/robots.txt', timeout=10)
+    except (httpx.HTTPError, OSError):
+        return RobotsPolicy()
+    if response.status_code == 404:
+        return RobotsPolicy('', fetch_succeeded=True)
+    if response.status_code != 200:
+        return RobotsPolicy()
+    try:
+        return RobotsPolicy(response.content[:ROBOTS_MAX_BYTES].decode('utf-8'),
+                            fetch_succeeded=True)
+    except UnicodeDecodeError:
+        return RobotsPolicy()
 
 
 def failure_fields(error) -> dict:
@@ -63,7 +110,7 @@ def finalize_repair_fields(report, repair_state):
 
 
 async def execute_with_bounded_repair(client, plan, observations, max_pages, record, repair_state,
-                                      proposer=None):
+                                      proposer=None, policy=None):
     """有界执行修复（M4.4.3）：候选最多额外执行 MAX_REPAIR_ATTEMPTS 次。
 
     原计划、候选计划、执行计划始终是三个独立对象：本函数只把局部变量指向候选，
@@ -76,7 +123,12 @@ async def execute_with_bounded_repair(client, plan, observations, max_pages, rec
     execution_plan = plan
     while True:
         try:
-            collected = await execute_plan(client, execution_plan, observations, max_pages)
+            if policy is None:
+                # loopback：调用形态与接线前逐字一致（兼容既有执行桩）。
+                collected = await execute_plan(client, execution_plan, observations, max_pages)
+            else:
+                collected = await execute_plan(client, execution_plan, observations, max_pages,
+                                               policy=policy)
         except ValueError as error:
             attempt, proposal, candidate = evaluate_failure(
                 error, RepairContext(original_plan_hash=original_hash, attempts=repair_state['repaired']),
@@ -182,17 +234,40 @@ async def run_task(args, config, *, task_id=None, output_root=None, on_stage=Non
 
     try:
         async with asyncio.timeout(180):
-            if policy.mode != 'loopback':
-                # S3.1 只接通策略传递链；公网执行在 S3.2 才开放（fail-closed）。
-                raise TargetPolicyError('public_mode_not_enabled')
             await stage('observing', '1/3 观察本机页面和翻页请求…')
             imported_url = getattr(args, 'imported_url', None)
+            resolver = getattr(args, 'resolver', None)
+            transport = None
+            robots = None
+            if policy.mode == 'public_http':
+                # C3-B 公网 admission 序列（固定顺序，任一步失败即 fail-closed）：
+                # check_target → resolve_and_classify → transport → robots →
+                # observe → execute。loopback 分支不进入本块，行为与既往逐字节一致。
+                entry_url = imported_url or args.url
+                entry_origin = admit_public_entry(entry_url, policy, imported=bool(imported_url))
+                resolve_and_classify(urlsplit(entry_url).hostname, resolver)
+                transport = build_public_transport(resolver=resolver)
+                robots = await fetch_robots(entry_origin, transport)
+                robots.enforce(urlsplit(entry_url).path or '/')
+            # 等价性原则：loopback 分支的调用形态与接线前逐字一致（不传新 kwarg），
+            # 公网分支才使用扩展签名。这保证既有行为与既有测试桩零漂移。
             if imported_url:
                 # 直接复用 curl_import 已解析的请求元数据重放，不再次解析 cURL 文本。
-                observations = await observe_imported(imported_url, getattr(args, 'imported_method', 'GET'),
-                                                      getattr(args, 'imported_request_body', None))
+                if transport is not None:
+                    observations = await observe_imported(
+                        imported_url, getattr(args, 'imported_method', 'GET'),
+                        getattr(args, 'imported_request_body', None),
+                        policy=policy, transport=transport)
+                else:
+                    observations = await observe_imported(
+                        imported_url, getattr(args, 'imported_method', 'GET'),
+                        getattr(args, 'imported_request_body', None))
             else:
-                observations = await observe(args.url, args.click_text or None)
+                if policy.mode == 'public_http':
+                    observations = await observe(args.url, args.click_text or None,
+                                                 policy=policy, resolver=resolver)
+                else:
+                    observations = await observe(args.url, args.click_text or None)
             report['source'] = 'curl_import' if imported_url else 'browser'
             # 持久化证据不写完整响应；本机执行仍使用内存中的实际样本校验。
             summaries = [cloud_summary(record) for record in observations[:5]]
@@ -221,9 +296,20 @@ async def run_task(args, config, *, task_id=None, output_root=None, on_stage=Non
                 raise ValueError('requested_fields_mismatch')
             save_json(folder / 'plan.json', plan.model_dump())
             await stage('executing', '3/3 校验计划并执行本地分页采集…')
-            async with httpx.AsyncClient(trust_env=False) as client:
+            if robots is not None:
+                execution_record = plan_record()
+                if execution_record is not None:
+                    # 执行目标 path 也须过 robots 判定（可能与入口 path 不同）。
+                    robots.enforce(urlsplit(execution_record.url).path or '/')
+            # loopback（transport=None）时构造参数与旧代码逐字一致；公网才注入受守卫 transport。
+            client_kwargs = {'trust_env': False}
+            if transport is not None:
+                client_kwargs['transport'] = transport
+            async with httpx.AsyncClient(**client_kwargs) as client:
                 execution_plan, collected = await execute_with_bounded_repair(
-                    client, plan, observations, args.max_pages, plan_record(), repair_state)
+                    client, plan, observations, args.max_pages, plan_record(), repair_state,
+                    # loopback 传 None：execute_plan 保持旧调用形态（等价性原则）。
+                    policy=policy if policy.mode == 'public_http' else None)
             await stage('verifying', '写入已验证的采集结果…')
             save_json(folder / 'result.json', collected['items'])
             report.update(status='succeeded', count=len(collected['items']), pages=collected['pages'],

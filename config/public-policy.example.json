@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "mode": "public_http",
+  "target_kind": "browser",
+  "allowlist": [{"domain": "books.toscrape.com", "include_subdomains": false}],
+  "schemes": ["https"],
+  "entry_url_query_allowed": false
+}

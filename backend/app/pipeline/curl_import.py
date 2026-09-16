@@ -1,11 +1,13 @@
 """Strict subset of copied cURL (bash). Never execute shell text."""
 import json
 import shlex
-from urllib.parse import urlsplit, parse_qsl
+from urllib.parse import urlsplit, urlunsplit, parse_qsl
 
 import httpx
 
-from .contracts import local_origin, has_sensitive_keys, SENSITIVE, Observation
+from ..policy import TargetPolicyError
+from ..policy.enforcement import check_target as policy_check_target
+from .contracts import has_sensitive_keys, SENSITIVE, Observation
 
 
 # 允许的请求方法；方法与请求体形态必须匹配：GET 无体，POST 必须是 JSON 对象。
@@ -14,8 +16,17 @@ SUPPORTED_METHODS = {'GET', 'POST'}
 DATA_FLAGS = {'-d', '--data', '--data-raw', '--data-binary'}
 
 
-def checked_url(url):
-    local_origin(url)
+def checked_url(url, policy=None):
+    if policy is None or policy.mode == 'loopback':
+        # 与旧 local_origin(url) 逐字节等价（query/fragment 行为不变）。
+        policy_check_target(url, policy)
+    else:
+        # 公网导入请求可携带 query（页码证据）：目标判定用去 query/path 的 origin
+        # 形态进行（不套用入口 entry-query 限制）；凭证与 fragment 照旧拒绝。
+        parts = urlsplit(url)
+        if parts.username or parts.password or parts.fragment:
+            raise TargetPolicyError('invalid_url')
+        policy_check_target(urlunsplit((parts.scheme, parts.netloc, '', '', '')), policy)
     if any(ord(c) < 33 for c in url) or '\\' in url:
         raise ValueError('invalid_url')
     pairs = parse_qsl(urlsplit(url).query, keep_blank_values=True)
@@ -29,7 +40,7 @@ def _is_json_content_type(value: str) -> bool:
     return value.split(';', 1)[0].strip().lower() == 'application/json'
 
 
-def parse_curl(text):
+def parse_curl(text, policy=None):
     if len(text.encode('utf-8')) > 16384:
         raise ValueError('curl_too_large')
     # Conservative rejection also inside quotes; no expansion or local-file options.
@@ -92,7 +103,7 @@ def parse_curl(text):
         method = 'POST'
     reasons = []
     try:
-        checked_url(url)
+        checked_url(url, policy)
     except ValueError:
         reasons.append('仅支持本机 HTTP URL，且不能包含敏感参数或重复参数。')
     request_body = None
@@ -136,8 +147,9 @@ def parse_curl(text):
     return result
 
 
-async def observe_imported(url, method: str = 'GET', request_body=None):
-    checked_url(url)
+async def observe_imported(url, method: str = 'GET', request_body=None, *, policy=None,
+                           transport=None):
+    checked_url(url, policy)
     if method not in SUPPORTED_METHODS:
         raise ValueError('unsupported_method')
     if method == 'POST':
@@ -146,7 +158,11 @@ async def observe_imported(url, method: str = 'GET', request_body=None):
             raise ValueError('unsupported_request_body')
     elif request_body is not None:
         raise ValueError('get_must_not_carry_request_body')
-    async with httpx.AsyncClient(trust_env=False, follow_redirects=False) as client:
+    # loopback（transport=None）时构造参数与旧代码逐字一致；公网由 run.py 注入受守卫 transport。
+    client_kwargs = {'trust_env': False, 'follow_redirects': False}
+    if transport is not None:
+        client_kwargs['transport'] = transport
+    async with httpx.AsyncClient(**client_kwargs) as client:
         if method == 'POST':
             stream = client.stream('POST', url, json=request_body, timeout=10,
                                    headers={'Accept': 'application/json', 'Content-Type': 'application/json'})

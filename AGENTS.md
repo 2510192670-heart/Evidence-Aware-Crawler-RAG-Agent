@@ -1,5 +1,19 @@
 # AGENTS.md
 
+## Active scope update — 2026-09-16
+
+The user approved the natural-language public workbench implementation and its
+publication on `fix/curl-live-verification`. Current capabilities and acceptance
+are described by `README.md`, `docs/WORKBENCH_V1.md` and
+`docs/WORKBENCH_V1_ACCEPTANCE.md`. The M5.4 documentation-only and loopback-only
+sections below are historical milestone boundaries, not the active scope.
+Public targets remain deployment-allowlisted and bounded; arbitrary crawling,
+authentication bypass, JD/Taobao adaptation and multi-user hosting are excluded.
+The historical source-byte freeze assertion is retained as a known failure.
+Publication does not imply formal milestone tagging or full regression green.
+User approved MIT licensing; legal/security guidance is separate from LICENSE.
+All deterministic execution, evidence, redaction and review requirements remain.
+
 # Project Overview
 
 This repository contains **Web Data Agent**, a local learning and demonstration project for AI-assisted web data collection.

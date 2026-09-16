@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "milestone": "m7-a-s2",
+  "generated_from": "backend/app/policy @ 925e220 (M7-A S1 checkpoint)",
+  "description": "TargetPolicy 等价性快照基线：钉住 loopback 模式对 local_origin 的逐条委托行为（含裸 ValueError 拒绝），并记录 public_http 基础策略的接受/拒绝判定。测试完全离线：不发网络请求、不做 DNS 解析。",
+  "loopback": {
+    "policy": {
+      "mode": "loopback"
+    },
+    "accepted": [
+      { "url": "http://127.0.0.1:8000/", "origin": "http://127.0.0.1:8000" },
+      { "url": "http://127.0.0.1:8123/a/b?page=2", "origin": "http://127.0.0.1:8123" },
+      { "url": "http://[::1]:9000/", "origin": "http://[::1]:9000" }
+    ],
+    "rejected": [
+      { "url": "http://localhost:8000/", "error": "only_literal_loopback_http_supported" },
+      { "url": "http://localhost/", "error": "only_literal_loopback_http_supported" },
+      { "url": "https://127.0.0.1/", "error": "only_literal_loopback_http_supported" },
+      { "url": "http://example.com/", "error": "only_literal_loopback_http_supported" },
+      { "url": "http://user@127.0.0.1/", "error": "only_literal_loopback_http_supported" },
+      { "url": "http://127.0.0.1/#frag", "error": "only_literal_loopback_http_supported" }
+    ]
+  },
+  "public_http": {
+    "policy": {
+      "mode": "public_http",
+      "target_kind": "http",
+      "allowlist": [
+        { "domain": "example.com", "include_subdomains": false }
+      ],
+      "schemes": ["https"]
+    },
+    "accepted": [
+      { "url": "https://example.com", "origin": "https://example.com" },
+      { "url": "https://example.com/items/list", "origin": "https://example.com" }
+    ],
+    "rejected": [
+      { "url": "file://example.com/etc/passwd", "code": "public_scheme_not_allowed" },
+      { "url": "file:///etc/passwd", "code": "invalid_url" },
+      { "url": "ftp://example.com/", "code": "public_scheme_not_allowed" },
+      { "url": "http://example.com/", "code": "public_scheme_not_allowed" },
+      { "url": "https://127.0.0.1/", "code": "target_not_in_allowlist" },
+      { "url": "https://[::1]/", "code": "target_not_in_allowlist" },
+      { "url": "https://192.168.1.1/", "code": "target_not_in_allowlist" },
+      { "url": "https://10.0.0.5/", "code": "target_not_in_allowlist" },
+      { "url": "https://172.16.0.9/", "code": "target_not_in_allowlist" }
+    ]
+  }
+}

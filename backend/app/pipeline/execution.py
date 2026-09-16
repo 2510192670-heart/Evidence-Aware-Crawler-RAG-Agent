@@ -3,18 +3,35 @@ import math
 
 import httpx
 
-from .contracts import ExtractionPlan, Observation, pointer, validate_plan
+from ..policy.enforcement import check_target as policy_check_target
+from .contracts import ExtractionPlan, Observation, pointer, validate_plan, field_value
+from .requirements import verify_fields
 from .errors import PipelineError
 
 
+def _target_check(policy):
+    """policy 存在时经 enforcement 层（委托单一真源）构造目标判定；None 保持旧路径。
+
+    enforcement.check_target 对 loopback 策略逐字节委托 local_origin，因此显式
+    传入 loopback 策略与不传策略行为等价。
+    """
+    if policy is None:
+        return None
+    return lambda url: policy_check_target(url, policy)
+
+
 async def execute_plan(client: httpx.AsyncClient, plan: ExtractionPlan,
-                       observations: list[Observation], max_pages: int = 3):
+                       observations: list[Observation], max_pages: int = 3, *, policy=None,
+                       field_specs=(), max_records=None):
     if not 1 <= max_pages <= 10:
         raise ValueError('max_pages_out_of_range')
     record = next((r for r in observations if r.request_id == plan.request_id), None)
     if record is None:
         raise ValueError('unknown_request_id')
-    sample_types = validate_plan(plan, record)
+    if max_records is not None and (type(max_records) is not int or not 1 <= max_records <= 1000):
+        raise ValueError('max_records_out_of_range')
+    optional_fields = {spec.name for spec in field_specs if not spec.required}
+    sample_types = validate_plan(plan, record, target_check=_target_check(policy), optional_fields=optional_fields)
 
     collected = []
     seen = set()
@@ -49,8 +66,13 @@ async def execute_plan(client: httpx.AsyncClient, plan: ExtractionPlan,
                 raise PipelineError('total_changed', details={'page': page})
             expected_total = total
         for item in items:
-            output = {name: pointer(item, path) for name, path in plan.fields.items()}
+            output = {name: field_value(item, path, optional=name in optional_fields) for name, path in plan.fields.items()}
             for name, value in output.items():
+                if name in optional_fields:
+                    if value is None:
+                        continue
+                    if sample_types[name] is type(None):
+                        sample_types[name] = type(value)
                 if type(value) not in {int, float, str, bool} or type(value) != sample_types[name]:
                     raise PipelineError('field_type_changed', details={'page': page, 'field': name})
                 if isinstance(value, float) and not math.isfinite(value):
@@ -61,7 +83,13 @@ async def execute_plan(client: httpx.AsyncClient, plan: ExtractionPlan,
             if key in seen:
                 raise PipelineError('duplicate_id', details={'page': page, 'unique_key': plan.unique_key})
             seen.add(key)
+            if field_specs:
+                verify_fields([output], field_specs)
             collected.append(output)
+            if max_records is not None and len(collected) >= max_records:
+                return {'items': collected, 'pages': page, 'expected_total': expected_total,
+                        'completeness': 'partial',
+                        'record_limit_reached': True}
         if expected_total is not None and len(collected) > expected_total:
             raise ValueError('too_many_items')
         if plan.has_next_pointer is not None:

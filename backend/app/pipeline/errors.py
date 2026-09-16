@@ -72,6 +72,25 @@ _GROUPS = (
         ('sensitive_request_not_supported', 'Observed request carries sensitive query keys.', ()),
         ('invalid_or_sensitive_field', 'Requested field is malformed or sensitive.', ('field',)),
     )),
+    # --- M7-A TargetPolicy：公网目标策略拒绝，永远禁止 repair 与 retry。
+    # detail_keys 一律为空：host/ip/url/path 等上下文不得进入报告通道。
+    _group(Category.SECURITY, (
+        ('target_not_in_allowlist', 'Target host is not covered by the policy allowlist.', ()),
+        ('public_scheme_not_allowed', 'Target scheme is not allowed by the policy.', ()),
+        ('unsupported_port', 'Target port is not the default port of its scheme.', ()),
+        ('policy_file_not_readable', 'Deployment policy file is missing or unreadable.', ()),
+        ('invalid_policy_file', 'Deployment policy file is not a strict JSON object.', ()),
+        ('invalid_policy', 'Policy document violates mode or scheme constraints.', ()),
+        ('invalid_policy_reference', 'Policy reference is not a lowercase sha256 hex digest.', ()),
+        ('policy_not_found', 'Policy reference is not registered on this deployment.', ()),
+        ('robots_disallowed', 'Robots rules disallow the path, or robots could not be read.', ()),
+        ('public_mode_not_enabled', 'Public execution is not enabled in this runtime slice.', ()),
+        ('ssrf_ip_blocked', 'Resolved address is private, reserved or otherwise dangerous.', ()),
+    ), phase='observing'),
+    # 解析失败是瞬态基础设施故障，但不自动重试：retryable 精确集合保持不变。
+    _group(Category.TRANSPORT, (
+        ('target_resolution_failed', 'Target hostname could not be resolved.', ()),
+    ), phase='observing'),
     _group(Category.SECURITY, (
         ('sensitive_pointer', 'Plan pointer matches a sensitive key.', ('pointer',)),
     ), phase='analyzing'),

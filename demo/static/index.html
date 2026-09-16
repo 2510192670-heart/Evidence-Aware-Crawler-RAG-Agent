@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Overlap Detector Playground · M6.1-B2</title>
+<style>
+  :root {
+    --bg: #0f1420; --panel: #171e2e; --panel2: #1d2639; --border: #2a3650;
+    --text: #dbe4f5; --muted: #8296b8; --accent: #5b9dff;
+    --block: #ff5d5d; --review: #f5b942; --pass: #3ddc84;
+    --mono: "Cascadia Code", Consolas, "JetBrains Mono", monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); height: 100vh; display: flex;
+         flex-direction: column; font: 14px/1.55 "Segoe UI", "Microsoft YaHei", sans-serif; }
+
+  header { display: flex; align-items: center; gap: 14px; padding: 12px 20px;
+           border-bottom: 1px solid var(--border); background: var(--panel); }
+  header h1 { font-size: 16px; font-weight: 600; letter-spacing: .3px; }
+  header .sub { color: var(--muted); font-size: 12px; }
+  .chip { font-family: var(--mono); font-size: 11px; padding: 3px 9px; border-radius: 20px;
+          border: 1px solid var(--border); background: var(--panel2); color: var(--muted); }
+  .chip.frozen { color: var(--pass); border-color: #245c3d; }
+  .chip.ro { color: var(--accent); border-color: #2c4a7c; }
+
+  main { flex: 1; display: grid; grid-template-columns: 1.15fr 0.9fr 1.25fr;
+         gap: 12px; padding: 12px 16px; min-height: 0; }
+  section { background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+            display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  section > h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 1.2px;
+                 color: var(--muted); padding: 10px 14px; border-bottom: 1px solid var(--border);
+                 display: flex; justify-content: space-between; align-items: center; }
+  .body { padding: 12px 14px; overflow-y: auto; flex: 1; min-height: 0; }
+
+  label { display: block; color: var(--muted); font-size: 12px; margin: 10px 0 4px; }
+  select, input[type=text] { width: 100%; background: var(--panel2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px; padding: 7px 9px; font-size: 13px; }
+  textarea { width: 100%; height: 148px; resize: vertical; background: #10182a; color: #c8f7c5;
+    border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px;
+    font: 12px/1.5 var(--mono); white-space: pre; overflow: auto; }
+  .row { display: flex; gap: 10px; align-items: end; }
+  .row > div { flex: 1; }
+  button.evaluate { margin-top: 14px; width: 100%; padding: 10px; font-size: 14px; font-weight: 600;
+    color: #0b1020; background: var(--accent); border: none; border-radius: 6px; cursor: pointer; }
+  button.evaluate:hover { filter: brightness(1.1); }
+  button.evaluate:disabled { opacity: .5; cursor: wait; }
+  .desc { color: var(--muted); font-size: 12px; margin-top: 6px; }
+
+  .banner { margin-top: 10px; padding: 9px 11px; border-radius: 6px; font-size: 12.5px;
+            font-family: var(--mono); display: none; }
+  .banner.error { display: block; background: #3a1d24; border: 1px solid #7c3040; color: #ffb3b3; }
+  .banner.ok { display: block; background: #16302a; border: 1px solid #2b6150; color: #9fe8c5; }
+
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 12.5px; }
+  .kv .k { color: var(--muted); white-space: nowrap; }
+  .kv .v { font-family: var(--mono); word-break: break-all; }
+  .note { color: var(--muted); font-size: 11.5px; margin-top: 10px; padding-top: 8px;
+          border-top: 1px dashed var(--border); }
+  .bundle-list { margin-top: 4px; }
+  .bundle-item { display: flex; gap: 8px; align-items: center; padding: 4px 0;
+                 border-bottom: 1px solid #202b42; font-size: 12px; }
+  .bundle-item .id { font-family: var(--mono); }
+  .tag { font-size: 10.5px; padding: 1px 7px; border-radius: 10px; border: 1px solid var(--border);
+         color: var(--muted); white-space: nowrap; }
+  .tag.frozen-split { color: #9ecbff; border-color: #2c4a7c; }
+  .tag.dev-split { color: #d3b3ff; border-color: #4c3a7c; }
+
+  .decision-hero { text-align: center; padding: 16px 10px 12px; }
+  .decision-hero .badge { display: inline-block; font-size: 26px; font-weight: 700; letter-spacing: 2px;
+    padding: 10px 30px; border-radius: 10px; border: 2px solid; font-family: var(--mono); }
+  .decision-hero .caption { color: var(--muted); font-size: 12px; margin-top: 8px; }
+  .badge.block { color: var(--block); border-color: var(--block); background: #2a1620; }
+  .badge.manual_review { color: var(--review); border-color: var(--review); background: #2a2214; }
+  .badge.auto_pass { color: var(--pass); border-color: var(--pass); background: #14281e; }
+  .counts { display: flex; justify-content: center; gap: 14px; margin-top: 10px; font-size: 12px;
+            color: var(--muted); font-family: var(--mono); }
+
+  .pair { border: 1px solid var(--border); border-radius: 8px; margin-top: 10px; overflow: hidden; }
+  .pair-head { display: flex; align-items: center; gap: 8px; padding: 8px 11px; background: var(--panel2);
+               font-size: 12px; font-family: var(--mono); }
+  .pair-head .pill { margin-left: auto; font-size: 11px; font-weight: 700; padding: 2px 10px;
+                     border-radius: 12px; letter-spacing: .5px; }
+  .pill.block { background: #43202a; color: var(--block); }
+  .pill.manual_review { background: #3d3117; color: var(--review); }
+  .pill.auto_pass { background: #1b382a; color: var(--pass); }
+  .pair-body { padding: 8px 11px; }
+  .sig-group { margin: 4px 0; }
+  .sig-group .title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+                      color: var(--muted); margin-bottom: 3px; }
+  details.sig { margin: 3px 0; border-left: 3px solid var(--border); padding-left: 8px; }
+  details.sig.strong { border-left-color: var(--block); }
+  details.sig.weak { border-left-color: var(--review); }
+  details.sig summary { cursor: pointer; font-size: 12.5px; font-family: var(--mono); }
+  details.sig .ev { font-size: 11.5px; color: var(--muted); font-family: var(--mono);
+                    padding: 4px 0 2px 2px; word-break: break-all; }
+  .no-signal { color: var(--muted); font-size: 12px; font-style: italic; }
+
+  footer { border-top: 1px solid var(--border); background: var(--panel); padding: 9px 20px;
+           display: flex; gap: 26px; align-items: center; font-size: 12px; color: var(--muted);
+           font-family: var(--mono); }
+  footer .rule b { color: var(--text); font-weight: 600; }
+  footer .disclaimer { margin-left: auto; font-style: italic; }
+  .empty { color: var(--muted); font-size: 12.5px; padding: 24px 6px; text-align: center; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Overlap Detector Playground</h1>
+  <span class="sub">M6.1-B2 · 跨 split 语义重叠检测 · 三态判决</span>
+  <span class="chip frozen" id="frozen-chip">frozen: …</span>
+  <span class="chip ro">evaluation/ read-only · zero modification</span>
+  <span class="chip ro">no LLM · deterministic</span>
+</header>
+
+<main>
+  <!-- ① Case Input -->
+  <section>
+    <h2>① Case Input <span class="sub" style="text-transform:none;letter-spacing:0">候选 case（作者/Agent 产出）</span></h2>
+    <div class="body">
+      <label>场景预设</label>
+      <select id="scenario"></select>
+      <div class="desc" id="scenario-desc"></div>
+
+      <div class="row">
+        <div><label>对比目标 against</label>
+          <input type="text" id="against" value="bundle" spellcheck="false"></div>
+      </div>
+
+      <label>case_raw</label>
+      <textarea id="case-raw" spellcheck="false"></textarea>
+      <label>oracle_raw</label>
+      <textarea id="oracle-raw" spellcheck="false"></textarea>
+      <label>fixture_raw</label>
+      <textarea id="fixture-raw" spellcheck="false"></textarea>
+
+      <button class="evaluate" id="evaluate-btn">Evaluate</button>
+      <div class="banner" id="banner"></div>
+    </div>
+  </section>
+
+  <!-- ② Evidence -->
+  <section>
+    <h2>② Evidence <span class="sub" style="text-transform:none;letter-spacing:0">NormalizedView（仅 digest 与计数）</span></h2>
+    <div class="body">
+      <div id="view-summary"><div class="empty">点击 Evaluate 后展示输入 case 的规范化视图</div></div>
+      <div class="note">leak-safe：视图与判决结果只包含 digest / 计数 / relation，
+        oracle 记录与响应体原文永不出网（服务端白名单强制）。</div>
+
+      <label style="margin-top:16px">冻结 bundle · m6-v1（<span id="bundle-count">…</span> cases）</label>
+      <div class="bundle-list" id="bundle-list"></div>
+    </div>
+  </section>
+
+  <!-- ③ Evaluation Result -->
+  <section>
+    <h2>③ Evaluation Result <span class="sub" style="text-transform:none;letter-spacing:0">固定规则 · 无阈值 · 无相似度评分</span></h2>
+    <div class="body">
+      <div id="result"><div class="empty">等待评估</div></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span class="rule"><b>if</b> strong_signals: <b style="color:var(--block)">BLOCK</b></span>
+  <span class="rule"><b>elif</b> weak_signals: <b style="color:var(--review)">MANUAL_REVIEW</b></span>
+  <span class="rule"><b>else</b>: <b style="color:var(--pass)">AUTO_PASS</b></span>
+  <span class="rule">weak never escalates</span>
+  <span class="disclaimer">AUTO_PASS = 无确定性重叠信号命中，不等于语义独立证明</span>
+</footer>
+
+<script>
+const SIGNAL_LABELS = {
+  S1_same_family_id: 'S1 · Same Family ID',
+  S2_exact_structural_signature: 'S2 · Structural Signature Match',
+  S3_exact_oracle_result_hash: 'S3 · Oracle Result Hash Match',
+  S4_exact_record_set: 'S4 · Exact Record Set Match',
+  S5_exact_response_payload: 'S5 · Response Payload Reuse',
+  W1_partial_record_overlap: 'W1 · Partial Record Overlap',
+  W2_nested_response_subtree_overlap: 'W2 · Nested Response Overlap',
+  W3_endpoint_composition_match: 'W3 · Endpoint Composition Match',
+  W4_pagination_semantics_match: 'W4 · Pagination Semantics Match',
+  W5_failure_code_match: 'W5 · Failure Code Match',
+  W6_repair_disposition_match: 'W6 · Repair Disposition Match',
+};
+const DECISION_TEXT = { block: 'BLOCK', manual_review: 'MANUAL_REVIEW', auto_pass: 'AUTO_PASS' };
+const $ = (id) => document.getElementById(id);
+
+async function api(path, options) {
+  const response = await fetch(path, options);
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw Object.assign(new Error(body?.detail?.error_code || response.statusText),
+                                        { detail: body?.detail });
+  return body;
+}
+
+function banner(message, kind) {
+  const el = $('banner');
+  el.className = 'banner ' + kind;
+  el.textContent = message;
+}
+
+function trunc(value) {
+  return typeof value === 'string' && value.length > 20 ? value.slice(0, 16) + '…' : String(value ?? '—');
+}
+
+function renderViewSummary(view) {
+  const rows = [
+    ['case_id', view.case_id], ['split', view.split], ['family_id', view.family_id],
+    ['family_signature', trunc(view.family_signature_digest)],
+    ['oracle_result_sha256', trunc(view.oracle_result_sha256)],
+    ['record_hashes', view.record_hash_count + ' digests'],
+    ['payload_hashes', view.payload_hash_count + ' digests'],
+    ['subtree_hashes', view.subtree_hash_count + ' digests'],
+    ['endpoint_composition', trunc(view.endpoint_composition_signature)],
+    ['pagination_signature', trunc(view.pagination_signature)],
+    ['failure_code', view.failure_code ?? '—'],
+    ['repair_disposition', view.repair_disposition],
+  ];
+  $('view-summary').innerHTML =
+    '<div class="kv">' + rows.map(([k, v]) =>
+      `<span class="k">${k}</span><span class="v">${v}</span>`).join('') + '</div>';
+}
+
+function renderSignals(signals, evidence, kind) {
+  if (!signals.length) return `<div class="no-signal">no ${kind} signal</div>`;
+  return signals.map((sig) => {
+    const ev = evidence[sig] || {};
+    const evText = Object.entries(ev).map(([k, v]) => `${k}: ${trunc(v)}`).join('  ·  ');
+    return `<details class="sig ${kind}" open>
+      <summary>${SIGNAL_LABELS[sig] || sig}</summary>
+      <div class="ev">${evText}</div></details>`;
+  }).join('');
+}
+
+function renderResult(payload) {
+  const counts = Object.entries(payload.decision_counts || {})
+    .map(([k, v]) => `<span>${DECISION_TEXT[k] || k} × ${v}</span>`).join('');
+  const hero = `<div class="decision-hero">
+      <span class="badge ${payload.overall_decision}">${DECISION_TEXT[payload.overall_decision]}</span>
+      <div class="caption">overall · ${payload.pair_count} cross-split pairs</div>
+      <div class="counts">${counts}</div></div>`;
+  const pairs = payload.results.map((r) => `
+    <div class="pair">
+      <div class="pair-head">${r.left_case_id} ⇄ ${r.right_case_id}
+        <span class="pill ${r.decision}">${DECISION_TEXT[r.decision]}</span></div>
+      <div class="pair-body">
+        <div class="sig-group"><div class="title">Strong</div>
+          ${renderSignals(r.strong_signals, r.evidence, 'strong')}</div>
+        <div class="sig-group"><div class="title">Weak</div>
+          ${renderSignals(r.weak_signals, r.evidence, 'weak')}</div>
+      </div></div>`).join('');
+  $('result').innerHTML = hero + pairs;
+}
+
+async function loadScenario(id) {
+  const scenario = await api('/api/demo/scenarios/' + encodeURIComponent(id));
+  $('scenario-desc').textContent = scenario.description + '（预期：'
+    + DECISION_TEXT[scenario.expected_decision] + '）';
+  $('case-raw').value = JSON.stringify(scenario.case_raw, null, 2);
+  $('oracle-raw').value = JSON.stringify(scenario.oracle_raw, null, 2);
+  $('fixture-raw').value = JSON.stringify(scenario.fixture_raw, null, 2);
+  $('against').value = scenario.against;
+  banner('', 'ok'); $('banner').className = 'banner';
+}
+
+async function evaluate() {
+  const button = $('evaluate-btn');
+  let parsed = {};
+  try {
+    parsed = { case_raw: JSON.parse($('case-raw').value),
+               oracle_raw: JSON.parse($('oracle-raw').value),
+               fixture_raw: JSON.parse($('fixture-raw').value) };
+  } catch (e) { banner('本地 JSON 解析失败: ' + e.message, 'error'); return; }
+  button.disabled = true;
+  try {
+    const payload = await api('/api/demo/evaluate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...parsed, against: $('against').value.trim() || 'bundle' }),
+    });
+    renderViewSummary(payload.left_view_summary);
+    renderResult(payload);
+    banner('ok · leak_guard: raw_records_returned=false, raw_payloads_returned=false', 'ok');
+  } catch (e) {
+    const code = e.detail?.error_code || e.message;
+    banner('fail-closed → 422 · ' + code + ' · 检测器拒绝非法输入而非降级为 PASS', 'error');
+    $('result').innerHTML = '<div class="empty">评估被拒绝（fail-closed）</div>';
+  } finally { button.disabled = false; }
+}
+
+async function init() {
+  try {
+    const health = await api('/api/demo/health');
+    $('frozen-chip').textContent = 'm6-v1 frozen ✓ ' + health.manifest_sha256.slice(0, 12)
+      + ' · ' + health.case_count + ' cases';
+    const scenarios = await api('/api/demo/scenarios');
+    $('scenario').innerHTML = scenarios.map((s) =>
+      `<option value="${s.id}">${s.name}</option>`).join('');
+    $('scenario').addEventListener('change', (e) => loadScenario(e.target.value));
+    await loadScenario(scenarios[0].id);
+    const cases = await api('/api/demo/bundle/cases');
+    $('bundle-count').textContent = cases.length;
+    $('bundle-list').innerHTML = cases.map((c) => `
+      <div class="bundle-item"><span class="id">${c.case_id}</span>
+        <span class="tag ${c.split === 'frozen_evaluation' ? 'frozen-split' : 'dev-split'}">${c.split}</span>
+        <span class="tag">${c.family_id}</span></div>`).join('');
+  } catch (e) { banner('初始化失败: ' + e.message, 'error'); }
+  $('evaluate-btn').addEventListener('click', evaluate);
+}
+init();
+</script>
+</body>
+</html>

@@ -1,11 +1,19 @@
 import asyncio
 import json
 import os
+from contextlib import AsyncExitStack
 from urllib.parse import parse_qsl, urlsplit, urlunsplit
 
 from playwright.async_api import async_playwright
+import httpx
 
+from ..policy.enforcement import check_target as policy_check_target
+from ..policy.resolution import resolve_and_classify
+from ..policy.transport import build_public_transport
+from ..policy.robots import fetch_robots
+from ..policy.browser import PublicBrowserProxy
 from .contracts import Observation, SENSITIVE, has_sensitive_keys, local_origin
+from .curl_import import checked_url
 
 MAX_BODY_BYTES = 256 * 1024
 OBSERVED_METHODS = {'GET', 'POST'}
@@ -46,12 +54,41 @@ def request_json_object(headers, post_data: str | None) -> dict | None:
     return value
 
 
-async def observe(url: str, click_text: str | None = '下一页') -> list[Observation]:
-    origin = local_origin(url)
-    if urlsplit(url).query:
+def route_permitted(url: str, origin: str, policy=None) -> bool:
+    """浏览器逐请求拦截的纯判定（提取为函数以便离线矩阵测试）。
+
+    loopback（含 policy=None）：保持原判式 local_origin(url) == origin，逐字节等价。
+    public：仅允许与入口 origin 同源——比 allowlist 更严，第三方子资源（CDN/
+    统计/字体）一律 fail-closed abort；子请求的 query 是正常形态，判定用去
+    query/path 的 origin 形态进行，不套用入口 URL 的 entry-query 限制。
+    方法规则（GET / 同源 JSON POST）仍由调用方叠加，本函数不复制。
+    """
+    try:
+        if policy is None or policy.mode == 'loopback':
+            return local_origin(url) == origin
+        parts = urlsplit(url)
+        candidate = urlunsplit((parts.scheme, parts.netloc, '', '', ''))
+        return policy_check_target(candidate, policy) == origin
+    except ValueError:
+        return False
+
+
+async def observe(url: str, click_text: str | None = '下一页', *, policy=None,
+                  resolver=None, html_fallback=False, force_html=False) -> list[Observation]:
+    if force_html:
+        checked_url(url, policy)
+        parts = urlsplit(url)
+        origin = f'{parts.scheme}://{parts.netloc}'
+    else:
+        origin = policy_check_target(url, policy)
+    if policy is not None and policy.mode == 'public_http':
+        # 公网入口 SSRF 准入：启动浏览器之前完成解析分类（fail-closed，零浏览器副作用）。
+        resolve_and_classify(urlsplit(url).hostname, resolver)
+    if urlsplit(url).query and not force_html:
         raise ValueError('entry_url_query_not_supported')
     records = []
     pending = []
+    markup = None
 
     async def capture(response):
         request = response.request
@@ -95,7 +132,16 @@ async def observe(url: str, click_text: str | None = '下一页') -> list[Observ
             pending.append(asyncio.create_task(capture(response)))
 
     async with asyncio.timeout(40):
-        async with async_playwright() as playwright:
+        async with AsyncExitStack() as stack:
+            proxy = None
+            if policy is not None and policy.mode == 'public_http':
+                transport = build_public_transport(resolver=resolver)
+                robots = await fetch_robots(origin, transport)
+                robots.enforce(urlsplit(url).path or '/')
+                client = await stack.enter_async_context(httpx.AsyncClient(
+                    transport=transport, trust_env=False, follow_redirects=False))
+                proxy = PublicBrowserProxy(origin, policy, client, robots)
+            playwright = await stack.enter_async_context(async_playwright())
             # 浏览器无需继承模型密钥等凭证。
             browser_env = {k: v for k, v in os.environ.items() if not SENSITIVE.search(k)}
             browser = await playwright.chromium.launch(headless=True, env=browser_env)
@@ -104,16 +150,21 @@ async def observe(url: str, click_text: str | None = '下一页') -> list[Observ
 
                 async def route_request(route):
                     request = route.request
-                    try:
-                        permitted = local_origin(request.url) == origin
-                    except ValueError:
-                        permitted = False
+                    permitted = route_permitted(request.url, origin, policy)
                     if permitted:
                         # 边界只放宽到「同源 JSON POST」：表单、multipart 与其他方法继续阻断。
                         permitted = request.method == 'GET' or (
                             request.method == 'POST'
                             and is_json_content_type(header_value(request.headers, 'content-type')))
-                    if permitted:
+                    if permitted and proxy is not None:
+                        body = request_json_object(request.headers, request.post_data) if request.method == 'POST' else None
+                        try:
+                            reply = await proxy.fetch(request.url, request.method, body)
+                        except (ValueError, httpx.HTTPError, OSError):
+                            await route.abort()
+                            return
+                        await route.fulfill(**reply)
+                    elif permitted:
                         await route.continue_()
                     else:
                         await route.abort()
@@ -122,9 +173,13 @@ async def observe(url: str, click_text: str | None = '下一页') -> list[Observ
                 await context.route_web_socket('**/*', lambda ws: ws.close())
                 page = await context.new_page()
                 page.on('response', schedule)
-                await page.goto(url, wait_until='domcontentloaded', timeout=20000)
+                navigation = await page.goto(url, wait_until='domcontentloaded', timeout=20000)
                 await asyncio.sleep(1)
-                if click_text:
+                if html_fallback or force_html:
+                    markup = await page.content()
+                    if len(markup.encode('utf-8')) > 2 * 1024 * 1024:
+                        raise ValueError('response_too_large')
+                if click_text and not force_html and (not html_fallback or await page.get_by_role('button', name=click_text, exact=True).count()):
                     await page.get_by_role('button', name=click_text, exact=True).click(timeout=10000)
                     await asyncio.sleep(1)
                 page.remove_listener('response', schedule)
@@ -137,6 +192,11 @@ async def observe(url: str, click_text: str | None = '下一页') -> list[Observ
                 if pending:
                     await asyncio.gather(*pending, return_exceptions=True)
                 await browser.close()
+    if markup is not None and (force_html or not records):
+        if navigation is None or not 200 <= navigation.status < 300:
+            raise ValueError(f'html_http_status_{navigation.status if navigation else "unknown"}')
+        return [Observation(request_id='html_document', url=url, query={}, body={'markup': markup},
+                            status=navigation.status)]
     if not records:
         raise ValueError('no_usable_json_requests')
     return records

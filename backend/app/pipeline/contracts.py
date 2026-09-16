@@ -138,14 +138,28 @@ def validate_pagination(plan: ExtractionPlan, record: Observation):
         raise PipelineError('invalid_page_field_type', details={'parameter': page})
 
 
-def validate_plan(plan: ExtractionPlan, record: Observation) -> dict:
+def field_value(item, path, *, optional=False):
+    try:
+        return pointer(item, path)
+    except PipelineError as error:
+        if optional and str(error) == 'pointer_not_found':
+            return None
+        raise
+
+
+def validate_plan(plan: ExtractionPlan, record: Observation, *, target_check=None, optional_fields=()) -> dict:
     """执行前的确定性计划校验，返回每个字段在样本上的类型。
 
     执行器与 repair 候选校验共用这一个函数，因此「校验通过的候选」与「可进入
     执行器的计划」完全等价，不存在第二套判定标准。本函数不发起任何请求、不修改
     计划，异常类型与错误码与执行器原有行为逐一保持一致。
+
+    M7-A C3-A：``target_check`` 是目标判定的注入点，签名为 ``(url) -> origin``。
+    默认 None 时使用 ``local_origin``，行为与注入点引入前逐字节一致。采用注入
+    而非直接 import policy：policy.target 已依赖本模块，反向 import 会成环；
+    注入也保证本模块继续零 policy 依赖。
     """
-    local_origin(record.url)
+    (target_check if target_check is not None else local_origin)(record.url)
     if any(SENSITIVE.search(k) for k in record.query):
         raise ValueError('sensitive_request_not_supported')
     if has_sensitive_keys(record.request_body):
@@ -153,13 +167,16 @@ def validate_plan(plan: ExtractionPlan, record: Observation) -> dict:
     validate_pagination(plan, record)
     if plan.unique_key not in plan.fields:
         raise ValueError('unique_key_not_in_fields')
+    if plan.unique_key in optional_fields:
+        raise ValueError('unique_key_must_be_required')
     for name, path in plan.fields.items():
         if not path.startswith('/') or SENSITIVE.search(name) or SENSITIVE.search(path):
             raise ValueError('invalid_or_sensitive_field')
     sample = pointer(record.body, plan.items_pointer)
     if not isinstance(sample, list) or not sample:
         raise ValueError('no_list_sample')
-    sample_types = {name: type(pointer(sample[0], path)) for name, path in plan.fields.items()}
+    sample_types = {name: type(field_value(sample[0], path, optional=name in optional_fields))
+                    for name, path in plan.fields.items()}
     if plan.total_pointer is not None:
         if type(pointer(record.body, plan.total_pointer)) is not int:
             raise ValueError('invalid_total_pointer')

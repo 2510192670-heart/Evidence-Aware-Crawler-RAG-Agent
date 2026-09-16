@@ -123,6 +123,13 @@ class Repository:
                 .order_by(self.task_events.c.seq).limit(100)).mappings().all()
         return [dict(row) for row in rows]
 
+    def update_preview(self, task_id, preview):
+        # Preview is task UI state, not a new execution stage or artifact.
+        with self.write() as connection:
+            connection.execute(self.tasks.update().where(
+                self.tasks.c.id == task_id, self.tasks.c.status == 'analyzing'
+            ).values(summary={'preview': preview}, updated_at=now()))
+
     def recover(self):
         with self.engine.connect() as connection:
             ids = connection.scalars(sa.select(self.tasks.c.id).where(self.tasks.c.active_slot == 1)).all()

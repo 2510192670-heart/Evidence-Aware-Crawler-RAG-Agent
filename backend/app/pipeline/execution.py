@@ -3,18 +3,30 @@ import math
 
 import httpx
 
+from ..policy.enforcement import check_target as policy_check_target
 from .contracts import ExtractionPlan, Observation, pointer, validate_plan
 from .errors import PipelineError
 
 
+def _target_check(policy):
+    """policy 存在时经 enforcement 层（委托单一真源）构造目标判定；None 保持旧路径。
+
+    enforcement.check_target 对 loopback 策略逐字节委托 local_origin，因此显式
+    传入 loopback 策略与不传策略行为等价。
+    """
+    if policy is None:
+        return None
+    return lambda url: policy_check_target(url, policy)
+
+
 async def execute_plan(client: httpx.AsyncClient, plan: ExtractionPlan,
-                       observations: list[Observation], max_pages: int = 3):
+                       observations: list[Observation], max_pages: int = 3, *, policy=None):
     if not 1 <= max_pages <= 10:
         raise ValueError('max_pages_out_of_range')
     record = next((r for r in observations if r.request_id == plan.request_id), None)
     if record is None:
         raise ValueError('unknown_request_id')
-    sample_types = validate_plan(plan, record)
+    sample_types = validate_plan(plan, record, target_check=_target_check(policy))
 
     collected = []
     seen = set()

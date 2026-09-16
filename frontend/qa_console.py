@@ -26,6 +26,8 @@ async def main(live=False, curl=False):
             path = route.request.url.split('/api/v1')[1].split('?')[0]
             if path == '/health':
                 value = {'model': {'configured': True}}
+            elif path in {'/policies', '/models'}:
+                value = {'items': []}
             elif path == '/tasks' and route.request.method == 'POST':
                 spec = route.request.post_data_json
                 submitted.append(spec)
@@ -62,6 +64,10 @@ async def main(live=False, curl=False):
         if live:
             for _ in range(150):
                 task = await (await page.request.get('http://127.0.0.1:8002/api/v1/tasks/' + task_id)).json()
+                preview = (task.get('summary') or {}).get('preview')
+                if task['status'] == 'analyzing' and preview:
+                    await page.request.post('http://127.0.0.1:8002/api/v1/tasks/' + task_id + '/confirm',
+                                            data={'plan_hash': preview['plan_hash']})
                 if task['status'] in ('succeeded', 'failed', 'cancelled', 'interrupted'):
                     break
                 await asyncio.sleep(1)

@@ -32,6 +32,9 @@ class PublicTransport(httpx.AsyncHTTPTransport):
 
     def __init__(self, resolver=None, per_domain_rps: float = DEFAULT_PER_DOMAIN_RPS,
                  clock=time.monotonic, **kwargs):
+        # Pooling solely by the pinned IP could reuse a TLS connection across
+        # different virtual hosts. Close idle connections instead.
+        kwargs['limits'] = httpx.Limits(max_connections=10, max_keepalive_connections=0)
         super().__init__(**kwargs)
         if not 0 < per_domain_rps <= MAX_PER_DOMAIN_RPS:
             raise ValueError('per_domain_rps_out_of_range')
@@ -58,9 +61,19 @@ class PublicTransport(httpx.AsyncHTTPTransport):
 
     async def handle_async_request(self, request):
         host = request.url.host
-        self.pre_request_checks(host)
+        addresses = self.pre_request_checks(host)
         await self._throttle(host)
-        return await super().handle_async_request(request)
+        headers = httpx.Headers(request.headers)
+        # A server-set cookie can enter httpx's jar between pages. Public
+        # collection never replays that state or caller authentication.
+        for name in ('cookie', 'authorization', 'proxy-authorization'):
+            headers.pop(name, None)
+        headers['Host'] = request.url.netloc.decode('ascii')
+        pinned = httpx.Request(
+            request.method, request.url.copy_with(host=addresses[0]),
+            headers=headers, stream=request.stream,
+            extensions={**request.extensions, 'sni_hostname': host})
+        return await super().handle_async_request(pinned)
 
 
 def build_public_transport(resolver=None,

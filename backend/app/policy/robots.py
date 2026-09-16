@@ -56,3 +56,37 @@ class RobotsPolicy:
     def enforce(self, path: str, user_agent: str = '*'):
         if not self.is_allowed(path, user_agent):
             raise TargetPolicyError('robots_disallowed')
+
+
+# Shared by task orchestration and the guarded browser observer.
+import httpx
+
+ROBOTS_MAX_BYTES = 64 * 1024
+
+async def fetch_robots(origin: str, transport) -> RobotsPolicy:
+    """抓取 robots.txt：经守卫 transport（每请求重解析分类）；fail-closed。
+
+    404 = 无 robots 文件 = 无规则（RFC 9309 惯例，允许）；其他非 200、网络
+    异常、非法文本一律拒绝。安全类异常（如 ssrf_ip_blocked）不在此捕获，
+    以稳定码上抛。
+    """
+    try:
+        async with httpx.AsyncClient(trust_env=False, follow_redirects=False,
+                                     transport=transport) as client:
+            async with client.stream('GET', origin + '/robots.txt', timeout=10) as response:
+                if response.status_code == 404:
+                    return RobotsPolicy('', fetch_succeeded=True)
+                if response.status_code != 200:
+                    return RobotsPolicy()
+                raw = bytearray()
+                async for chunk in response.aiter_bytes():
+                    if len(raw) + len(chunk) > ROBOTS_MAX_BYTES:
+                        return RobotsPolicy()
+                    raw.extend(chunk)
+    except (httpx.HTTPError, OSError):
+        return RobotsPolicy()
+    try:
+        return RobotsPolicy(raw.decode('utf-8'),
+                            fetch_succeeded=True)
+    except UnicodeDecodeError:
+        return RobotsPolicy()

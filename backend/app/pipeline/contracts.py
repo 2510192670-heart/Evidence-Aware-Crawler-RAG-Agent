@@ -138,7 +138,16 @@ def validate_pagination(plan: ExtractionPlan, record: Observation):
         raise PipelineError('invalid_page_field_type', details={'parameter': page})
 
 
-def validate_plan(plan: ExtractionPlan, record: Observation, *, target_check=None) -> dict:
+def field_value(item, path, *, optional=False):
+    try:
+        return pointer(item, path)
+    except PipelineError as error:
+        if optional and str(error) == 'pointer_not_found':
+            return None
+        raise
+
+
+def validate_plan(plan: ExtractionPlan, record: Observation, *, target_check=None, optional_fields=()) -> dict:
     """执行前的确定性计划校验，返回每个字段在样本上的类型。
 
     执行器与 repair 候选校验共用这一个函数，因此「校验通过的候选」与「可进入
@@ -158,13 +167,16 @@ def validate_plan(plan: ExtractionPlan, record: Observation, *, target_check=Non
     validate_pagination(plan, record)
     if plan.unique_key not in plan.fields:
         raise ValueError('unique_key_not_in_fields')
+    if plan.unique_key in optional_fields:
+        raise ValueError('unique_key_must_be_required')
     for name, path in plan.fields.items():
         if not path.startswith('/') or SENSITIVE.search(name) or SENSITIVE.search(path):
             raise ValueError('invalid_or_sensitive_field')
     sample = pointer(record.body, plan.items_pointer)
     if not isinstance(sample, list) or not sample:
         raise ValueError('no_list_sample')
-    sample_types = {name: type(pointer(sample[0], path)) for name, path in plan.fields.items()}
+    sample_types = {name: type(field_value(sample[0], path, optional=name in optional_fields))
+                    for name, path in plan.fields.items()}
     if plan.total_pointer is not None:
         if type(pointer(record.body, plan.total_pointer)) is not int:
             raise ValueError('invalid_total_pointer')

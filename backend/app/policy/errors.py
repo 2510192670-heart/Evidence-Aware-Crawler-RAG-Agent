@@ -13,7 +13,7 @@
 - S3 接入管线（需里程碑批准解冻 backend）时统一迁移为 PipelineError。
 """
 
-__all__ = ['TargetPolicyError']
+__all__ = ['DataPolicyError', 'TargetPolicyError']
 
 
 class TargetPolicyError(ValueError):
@@ -22,3 +22,16 @@ class TargetPolicyError(ValueError):
     def __init__(self, code):
         super().__init__(code)
         self.code = code
+
+
+class DataPolicyError(ValueError):
+    """M7 Governance：数据边界拒绝；``str(error)`` 恰为稳定码。
+
+    ``reason`` 是封闭词汇的结构化成因（如 possible_personal_data_collection），
+    绝不携带用户原始描述或命中关键词（防泄漏，与 failure_fields 原则一致）。
+    """
+
+    def __init__(self, code, reason=None):
+        super().__init__(code)
+        self.code = code
+        self.reason = reason

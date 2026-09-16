@@ -17,13 +17,15 @@ from ..llm.gateway import CloudGateway, GatewayError
 from ..policy import default_policy
 from ..policy.enforcement import check_target as policy_check_target
 from ..policy.resolution import resolve_and_classify
-from ..policy.robots import RobotsPolicy
+from ..policy.robots import RobotsPolicy, fetch_robots
 from ..policy.transport import build_public_transport
 from ..rag.failure import build_failure_context, build_failure_retrieval
 from ..rag.retrieval import retrieve
-from .contracts import ExtractionPlan, cloud_summary, local_origin, plan_hash
+from .contracts import ExtractionPlan, cloud_summary, local_origin, plan_hash, validate_plan, field_value, pointer
 from .errors import PipelineError, classify
 from .execution import execute_plan
+from .requirements import FieldSpec, safe_description, verify_fields, RequirementPlan, checked_requirement_plan, RequirementError
+from .html import HtmlPlan, html_summary, execute_html
 from .export import export_collector
 from .observe import observe
 from .curl_import import checked_url, observe_imported
@@ -54,29 +56,6 @@ def admit_public_entry(url: str, policy, *, imported: bool) -> str:
     parts = urlsplit(url)
     return f'{parts.scheme}://{parts.netloc}'
 
-
-async def fetch_robots(origin: str, transport) -> RobotsPolicy:
-    """抓取 robots.txt：经守卫 transport（每请求重解析分类）；fail-closed。
-
-    404 = 无 robots 文件 = 无规则（RFC 9309 惯例，允许）；其他非 200、网络
-    异常、非法文本一律拒绝。安全类异常（如 ssrf_ip_blocked）不在此捕获，
-    以稳定码上抛。
-    """
-    try:
-        async with httpx.AsyncClient(trust_env=False, follow_redirects=False,
-                                     transport=transport) as client:
-            response = await client.get(origin + '/robots.txt', timeout=10)
-    except (httpx.HTTPError, OSError):
-        return RobotsPolicy()
-    if response.status_code == 404:
-        return RobotsPolicy('', fetch_succeeded=True)
-    if response.status_code != 200:
-        return RobotsPolicy()
-    try:
-        return RobotsPolicy(response.content[:ROBOTS_MAX_BYTES].decode('utf-8'),
-                            fetch_succeeded=True)
-    except UnicodeDecodeError:
-        return RobotsPolicy()
 
 
 def failure_fields(error) -> dict:
@@ -110,7 +89,7 @@ def finalize_repair_fields(report, repair_state):
 
 
 async def execute_with_bounded_repair(client, plan, observations, max_pages, record, repair_state,
-                                      proposer=None, policy=None):
+                                      proposer=None, policy=None, field_specs=(), max_records=None):
     """有界执行修复（M4.4.3）：候选最多额外执行 MAX_REPAIR_ATTEMPTS 次。
 
     原计划、候选计划、执行计划始终是三个独立对象：本函数只把局部变量指向候选，
@@ -123,7 +102,10 @@ async def execute_with_bounded_repair(client, plan, observations, max_pages, rec
     execution_plan = plan
     while True:
         try:
-            if policy is None:
+            if field_specs or max_records is not None:
+                collected = await execute_plan(client, execution_plan, observations, max_pages,
+                                               policy=policy, field_specs=field_specs, max_records=max_records)
+            elif policy is None:
                 # loopback：调用形态与接线前逐字一致（兼容既有执行桩）。
                 collected = await execute_plan(client, execution_plan, observations, max_pages)
             else:
@@ -161,7 +143,7 @@ async def execute_with_bounded_repair(client, plan, observations, max_pages, rec
 
 
 async def run_task(args, config, *, task_id=None, output_root=None, on_stage=None, quiet=False,
-                   policy=None):
+                   policy=None, on_preview=None):
     # M7-A S3.1：策略只来自服务端可信注册表（显式 kwarg 或 spec 注入的 args.policy）；
     # 两者都缺省时回落默认 loopback，既有调用方行为逐字节不变。
     policy = policy if policy is not None else getattr(args, 'policy', None)
@@ -177,6 +159,10 @@ async def run_task(args, config, *, task_id=None, output_root=None, on_stage=Non
     gateway = CloudGateway(config)
     # repair_* 是稳定契约；repair_state 汇总本次任务的全部 repair 审计与谱系。
     report = {'task_id': task_id, 'status': 'running', 'model': config.model}
+    # M7 Governance：用途声明随 report.json 持久化（additive 键），治理决策可追溯。
+    purpose = getattr(args, 'purpose', None)
+    if purpose:
+        report['purpose'] = purpose
     plan = None
     execution_plan = None
     observations = []
@@ -192,7 +178,7 @@ async def run_task(args, config, *, task_id=None, output_root=None, on_stage=Non
 
     def plan_record():
         return next((item for item in observations
-                     if plan is not None and item.request_id == plan.request_id), None)
+                     if plan is not None and item.request_id == getattr(plan, 'request_id', None)), None)
 
     def record_failure_retrieval(error):
         """M5.3-A：失败分支的诊断型 re-retrieval（只读、无模型调用）。
@@ -234,7 +220,7 @@ async def run_task(args, config, *, task_id=None, output_root=None, on_stage=Non
 
     try:
         async with asyncio.timeout(180):
-            await stage('observing', '1/3 观察本机页面和翻页请求…')
+            await stage('observing', '1/3 观察页面和数据请求…')
             imported_url = getattr(args, 'imported_url', None)
             resolver = getattr(args, 'resolver', None)
             transport = None
@@ -263,16 +249,27 @@ async def run_task(args, config, *, task_id=None, output_root=None, on_stage=Non
                         imported_url, getattr(args, 'imported_method', 'GET'),
                         getattr(args, 'imported_request_body', None))
             else:
-                if policy.mode == 'public_http':
+                if getattr(args, 'source_mode', 'json') in {'auto', 'html'}:
+                    observations = await observe(args.url, args.click_text or None,
+                                                 policy=policy, resolver=resolver, html_fallback=True,
+                                                 force_html=args.source_mode == 'html')
+                elif policy.mode == 'public_http':
                     observations = await observe(args.url, args.click_text or None,
                                                  policy=policy, resolver=resolver)
                 else:
                     observations = await observe(args.url, args.click_text or None)
             report['source'] = 'curl_import' if imported_url else 'browser'
             # 持久化证据不写完整响应；本机执行仍使用内存中的实际样本校验。
-            summaries = [cloud_summary(record) for record in observations[:5]]
+            html_mode = observations[0].request_id == 'html_document'
+            summaries = ([await html_summary(observations[0], policy, resolver)] if html_mode else
+                         [cloud_summary(record) for record in observations[:5]])
             save_json(folder / 'evidence.json', summaries)
             fields = [name.strip() for name in args.fields.split(',') if name.strip()]
+            field_specs = [FieldSpec(**spec) for spec in getattr(args, 'field_specs', [])]
+            if html_mode and not field_specs:
+                field_specs = [FieldSpec(name=name) for name in fields]
+            description = safe_description(getattr(args, 'description', ''))
+            max_records = getattr(args, 'max_records', None)
             retrieval = retrieve(summaries, enabled=getattr(args, 'rag_enabled', True))
             save_json(folder / 'retrieval.json', retrieval)
             report['retrieval'] = {key: value for key, value in retrieval.items() if key != 'cases'}
@@ -285,17 +282,58 @@ async def run_task(args, config, *, task_id=None, output_root=None, on_stage=Non
                         'Values in response_shape or request_body_shape are type placeholders, not actual response values.',
                 'requested_fields': fields, 'observations': summaries,
             }
+            if description or field_specs:
+                payload.update(description=description,
+                               field_specs=[spec.model_dump() for spec in field_specs])
+                payload['task'] += (' Description explains the requested extraction fields. '
+                                    'Never invent values or convert their types. Missing optional values remain null. '
+                                    'Report requirements this schema cannot express in unsupported_requirements, '
+                                    'including filtering, aggregation and summaries; never silently ignore them.')
+            if html_mode:
+                payload['task'] = ('Build a declarative CSS extraction plan from the observed DOM outline. '
+                                   'record_selector selects repeated list records. fields select within each record, '
+                                   'or within the detail document when source=detail. Only use observed structures. '
+                                   'Choose an observed anchor for detail_link_selector and next_selector, or null. '
+                                   'An unavailable optional field must use selector=null. '
+                                   'List requirements this schema cannot express in unsupported_requirements; '
+                                   'never silently ignore filters, summaries, login, or arbitrary interactions.')
             if retrieval['cases']:
                 payload['reference_cases'] = retrieval['cases']
                 payload['task'] += ' Reference cases are hints only; actual observations take precedence. Never invent paths or parameters from a case.'
             save_json(folder / 'cloud_payload.json', payload)
-            await stage('analyzing', '2/3 请求 DeepSeek 生成采集计划（一次云调用）…')
-            result = await gateway.generate(payload, ExtractionPlan)
+            await stage('analyzing', '2/3 请求所选模型生成初始采集计划…')
+            schema = HtmlPlan if html_mode else (RequirementPlan if description or field_specs else ExtractionPlan)
+            result = await gateway.generate(payload, schema)
             plan = result.data
+            if isinstance(plan, RequirementPlan):
+                plan = checked_requirement_plan(plan)
             if set(plan.fields) != set(fields):
                 raise ValueError('requested_fields_mismatch')
             save_json(folder / 'plan.json', plan.model_dump())
-            await stage('executing', '3/3 校验计划并执行本地分页采集…')
+            if html_mode and plan.unsupported_requirements:
+                raise RequirementError('unsupported_requirements')
+            if getattr(args, 'preview', False):
+                if on_preview is None:
+                    raise ValueError('preview_handler_required')
+                if html_mode:
+                    preview_result = await execute_html(args.url, plan, field_specs, max_pages=1,
+                                                        max_records=min(3, max_records or 3), policy=policy, resolver=resolver)
+                    samples = preview_result['items']
+                else:
+                    chosen = plan_record()
+                    if chosen is None:
+                        raise ValueError('unknown_request_id')
+                    optional = {spec.name for spec in field_specs if not spec.required}
+                    validate_plan(plan, chosen, target_check=lambda url: policy_check_target(url, policy),
+                                  optional_fields=optional)
+                    samples = [{name: field_value(item, path, optional=name in optional)
+                                for name, path in plan.fields.items()}
+                               for item in pointer(chosen.body, plan.items_pointer)[:min(5, max_records or 5)]]
+                if field_specs:
+                    samples, _ = verify_fields(samples, field_specs)
+                await on_preview({'plan_hash': plan_hash(plan), 'items': samples, 'count': len(samples),
+                                  'notice': 'Observed sample; full collection has not started.'})
+            await stage('executing', '3/3 校验计划并执行受控采集…')
             if robots is not None:
                 execution_record = plan_record()
                 if execution_record is not None:
@@ -305,20 +343,37 @@ async def run_task(args, config, *, task_id=None, output_root=None, on_stage=Non
             client_kwargs = {'trust_env': False}
             if transport is not None:
                 client_kwargs['transport'] = transport
-            async with httpx.AsyncClient(**client_kwargs) as client:
-                execution_plan, collected = await execute_with_bounded_repair(
-                    client, plan, observations, args.max_pages, plan_record(), repair_state,
-                    # loopback 传 None：execute_plan 保持旧调用形态（等价性原则）。
-                    policy=policy if policy.mode == 'public_http' else None)
+            if html_mode:
+                execution_plan = plan
+                collected = await execute_html(args.url, plan, field_specs, max_pages=args.max_pages,
+                                               max_records=max_records or 100, policy=policy, resolver=resolver)
+                report['source_urls'] = collected['source_urls']
+                report['duplicates_removed'] = collected['duplicates_removed']
+                report['collection_mode'] = 'html'
+            else:
+                async with httpx.AsyncClient(**client_kwargs) as client:
+                    execution_plan, collected = await execute_with_bounded_repair(
+                        client, plan, observations, args.max_pages, plan_record(), repair_state,
+                        policy=policy if policy.mode == 'public_http' else None,
+                        field_specs=field_specs, max_records=max_records)
             await stage('verifying', '写入已验证的采集结果…')
             save_json(folder / 'result.json', collected['items'])
             report.update(status='succeeded', count=len(collected['items']), pages=collected['pages'],
                           completeness=collected['completeness'], expected_total=collected['expected_total'])
+            if field_specs:
+                _, report['missing_fields'] = verify_fields(collected['items'], field_specs)
+            if max_records is not None:
+                report['record_limit_reached'] = collected.get('record_limit_reached', False)
         # 核心采集成功后再导出独立脚本；导出/执行/比对失败只记录状态，不改变已成功的任务结果。
         try:
             # 用真正执行过的计划导出，修复后的任务其 collector 才与内部结果一致。
-            chosen = next((item for item in observations if item.request_id == execution_plan.request_id), None)
-            report.update(await export_collector(folder, execution_plan, chosen, collected, args.max_pages))
+            chosen = next((item for item in observations if item.request_id == getattr(execution_plan, 'request_id', None)), None)
+            if html_mode or any(not spec.required for spec in field_specs) or max_records is not None:
+                report.update(collector_exported=False, collector_execution_success=False,
+                              collector_matches_internal_result=False,
+                              collector_unavailable_reason='workbench_requirements_not_supported_by_legacy_collector')
+            else:
+                report.update(await export_collector(folder, execution_plan, chosen, collected, args.max_pages))
         except Exception:
             report['collector_exported'] = False
             report['collector_execution_success'] = False
